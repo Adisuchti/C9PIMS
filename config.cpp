@@ -31,6 +31,8 @@ class RscShortcutButton;
 class RscPicture;
 class RscHTML;
 class RscDisplayAttributes;
+class RscControlsGroup;
+class ScrollBar;
 
 class CfgPatches
 {
@@ -412,6 +414,7 @@ class PIMSMenuDialog {
             colorBackground[] = {0.2,0.2,0.2,0.8};
             onLBSelChanged = "_this call onListboxSelectionChanged";
         };
+        /*
         class itemText: RscStructuredText
         {
             //TODO maybe use RscHTML
@@ -420,6 +423,28 @@ class PIMSMenuDialog {
             y = 2.5 * GUI_GRID_H + GUI_GRID_Y;
             w = 18.5 * GUI_GRID_W;
             h = 18.5 * GUI_GRID_H;
+        };
+        */
+        class itemText: RscControlsGroup
+        {
+            idc = 1003;
+            x = 20.5 * GUI_GRID_W + GUI_GRID_X;
+            y = 2.5 * GUI_GRID_H + GUI_GRID_Y;
+            w = 18.5 * GUI_GRID_W;
+            h = 18.5 * GUI_GRID_H;
+            class Controls
+            {
+                class itemText: RscStructuredText
+                {
+                    idc = 1000;
+                    //x = 20.5 * GUI_GRID_W + GUI_GRID_X;
+                    //y = 3.5 * GUI_GRID_H + GUI_GRID_Y;
+                    x = 0;
+                    y = 0;
+                    w = 18.5 * GUI_GRID_W;
+                    h = 30 * GUI_GRID_H;
+                };
+            };
         };
         class headerText: RscStructuredText
         {
@@ -433,9 +458,9 @@ class PIMSMenuDialog {
         {
             idc = 1600;
             style = ST_LEFT;
-            x = 21.5 * GUI_GRID_W + GUI_GRID_X;
+            x = 20.3 * GUI_GRID_W + GUI_GRID_X;
             y = 21.5 * GUI_GRID_H + GUI_GRID_Y;
-            w = 4 * GUI_GRID_W;
+            w = 3.75 * GUI_GRID_W;
             h = 2.5 * GUI_GRID_H;
             onMouseButtonClick = "_this call onSellButtonPressed";
             class TextPos
@@ -445,16 +470,20 @@ class PIMSMenuDialog {
                 right = 0;
                 bottom = 0;
             };
-            animTextureNormal = "#(argb,8,8,3)color(0.8,0,0,1)";
-            animTextureDefault = "#(argb,8,8,3)color(0.8,0,0,1)";
-            animTextureOver = "#(argb,8,8,3)color(1,0,0,1)";
+            //animTextureNormal = "#(argb,8,8,3)color(0.8,0,0,1)";
+            //animTextureDefault = "#(argb,8,8,3)color(0.8,0,0,1)";
+            //animTextureOver = "#(argb,8,8,3)color(1,0,0,1)";
+            animTextureDefault = "#(argb,8,8,3)color(0.5,0.5,0.5,0.1)";
+            colorBackground[] = {0.6,0,0,1};
+            colorBackgroundFocused[] = {1,1,1,1};
+            colorBackground2[] = {1,0,0,1};
         };
         class QuantitySelect: RscEdit
         {
             idc = 1800;
-            x = 25.8 * GUI_GRID_W + GUI_GRID_X;
+            x = 24.24 * GUI_GRID_W + GUI_GRID_X;
             y = 21.5 * GUI_GRID_H + GUI_GRID_Y;
-            w = 4 * GUI_GRID_W;
+            w = 3.75 * GUI_GRID_W;
             h = 2.5 * GUI_GRID_H;
             maxChars = 4;
             colorBackground[] = {0,0,0,1};
@@ -464,12 +493,10 @@ class PIMSMenuDialog {
         {
             idc = 1601;
             style = ST_LEFT;
-            x = 30.2 * GUI_GRID_W + GUI_GRID_X;
+            x = 28.28 * GUI_GRID_W + GUI_GRID_X;
             y = 21.5 * GUI_GRID_H + GUI_GRID_Y;
-            w = 4 * GUI_GRID_W;
+            w = 3.75 * GUI_GRID_W;
             h = 2.5 * GUI_GRID_H;
-            color[] = {1,1,1,1};
-            colorDisabled[] = {1,1,1,0.25};
             onMouseButtonClick = "_this call onBuyButtonPressed";
             class TextPos
             {
@@ -478,21 +505,23 @@ class PIMSMenuDialog {
                 right = 0;
                 bottom = 0;
             };
-            animTextureNormal = "#(argb,8,8,3)color(0,0.8,0,1)";
-            animTextureDefault = "#(argb,8,8,3)color(0,0.8,0,1)";
-            animTextureOver = "#(argb,8,8,3)color(0,1,0,1)";
-            animTextureDisabled = "#(argb,8,8,3)color(0.5,0.5,0.5,1)";
+            //animTextureNormal = "#(argb,8,8,3)color(0,0.8,0,1)";
+            //animTextureDefault = "#(argb,8,8,3)color(0,0.8,0,1)";
+            //animTextureOver = "#(argb,8,8,3)color(0,1,0,1)";
+            //animTextureDisabled = "#(argb,8,8,3)color(0.5,0.5,0.5,1)";
+            animTextureDefault = "#(argb,8,8,3)color(0.5,0.5,0.5,0.1)";
+            colorBackground[] = {0,0.6,0,1};
+            colorBackgroundFocused[] = {1,1,1,1};
+            colorBackground2[] = {0,1,0,1};
         };
         class rightButton: RscShortcutButton
         {
             idc = 1602;
             style = ST_LEFT;
-            x = 34.5 * GUI_GRID_W + GUI_GRID_X;
+            x = 32.22 * GUI_GRID_W + GUI_GRID_X;
             y = 21.5 * GUI_GRID_H + GUI_GRID_Y;
-            w = 4 * GUI_GRID_W;
+            w = 3.75 * GUI_GRID_W;
             h = 2.5 * GUI_GRID_H;
-            color[] = {1,1,1,1};
-            colorDisabled[] = {1,1,1,0.25};
             onMouseButtonClick = "_this call onRetrieveButtonPressed";
             class TextPos
             {
@@ -501,11 +530,42 @@ class PIMSMenuDialog {
                 right = 0;
                 bottom = 0;
             };
-            animTextureNormal = "#(argb,8,8,3)color(0,0,1.0,1)";
-            animTextureDefault = "#(argb,8,8,3)color(0,0,1.0,1)";
-            animTextureOver = "#(argb,8,8,3)color(0.2,0.2,1,1)";
-            animTextureDisabled = "#(argb,8,8,3)color(0.5,0.5,0.5,1)";
+            //animTextureNormal = "#(argb,8,8,3)color(0,0,1,1)";
+            //animTextureDefault = "#(argb,8,8,3)color(0,0,1,1)";
+            //animTextureOver = "#(argb,8,8,3)color(0.2,0.2,1,1)";
+            //animTextureDisabled = "#(argb,8,8,3)color(0.5,0.5,0.5,1)";
+            animTextureDefault = "#(argb,8,8,3)color(0.5,0.5,0.5,0.1)";
+            colorBackground[] = {0,0,0.6,1};
+            colorBackgroundFocused[] = {1,1,1,1};
+            colorBackground2[] = {0,0,1,1};
         };
+
+        class rightButton2: RscShortcutButton
+        {
+            idc = 1603;
+            style = ST_LEFT;
+            x = 36.17 * GUI_GRID_W + GUI_GRID_X;
+            y = 21.5 * GUI_GRID_H + GUI_GRID_Y;
+            w = 3.75 * GUI_GRID_W;
+            h = 2.5 * GUI_GRID_H;
+            onMouseButtonClick = "_this call onRetrieveAllButtonPressed";
+            class TextPos
+            {
+                left = 0.1 * GUI_GRID_W;
+                top = 0.1 * GUI_GRID_W;
+                right = 0;
+                bottom = 0;
+            };
+            //animTextureNormal = "#(argb,8,8,3)color(0.8,0,0.8,1)";
+            //animTextureDefault = "#(argb,8,8,3)color(0.8,0,0.8,1)";
+            //animTextureOver = "#(argb,8,8,3)color(1,0,1,1)";
+            //animTextureDisabled = "#(argb,8,8,3)color(0.5,0.5,0.5,1)";
+            animTextureDefault = "#(argb,8,8,3)color(0.5,0.5,0.5,0.1)";
+            colorBackground[] = {0.6,0,0.6,1};
+            colorBackgroundFocused[] = {1,1,1,1};
+            colorBackground2[] = {1,0,1,1};
+        };
+
         class reloadButton: RscShortcutButton
         {
             style = ST_CENTER;

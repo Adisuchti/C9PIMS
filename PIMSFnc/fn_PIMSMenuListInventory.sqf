@@ -17,7 +17,7 @@ uiNamespace setVariable ["PIMS_allInventories", []];
 uiNamespace setVariable ["PIMS_allContentItems", []];
 uiNamespace setVariable ["PIMS_isAdmin", _isAdmin];
 uiNamespace setVariable ["PIMS_quantity", 1];
-uiNamespace setVariable ["PIMS_ViewMode", 0]; //0 = inventory, 1 = market, 2 = Bank, 3 = vehicles, 4 = vehicles market, 5 = admin panel //TODO implement changes
+uiNamespace setVariable ["PIMS_ViewMode", 0]; //0 = inventory, 1 = market, 2 = Bank, 3 = vehicles, 4 = vehicles market, 5 = admin panel
 uiNamespace setVariable ["PIMS_allVehicles", []];
 uiNamespace setVariable ["PIMS_vehicleMarket", []];
 uiNamespace setVariable ["PIMS_enableVehicles", _enableVehicles];
@@ -161,9 +161,10 @@ fn_convertDbItemToText = {
 };
 
 fn_updateDetailText = {
+    private _string = "";
     //_string = format ["PIMS DEBUG: fn_updateDetailText called."];
     //[_string] remoteExec ["systemChat", 0];
-    private _selectedIndex = uiNamespace getVariable ["PIMS_selectedIndex", "None"];
+    private _selectedIndex = uiNamespace getVariable ["PIMS_selectedIndex", "None"]; //TODO what if list is empty and therefore index 0 is not a valid item
     private _listOfItems = uiNamespace getVariable ["PIMS_listOfItems", "None"];
     private _inventoryMoney = uiNamespace getVariable ["PIMS_inventoryMoney", 0];
     private _viewMode = uiNamespace getVariable ["PIMS_ViewMode", 0];
@@ -178,9 +179,12 @@ fn_updateDetailText = {
     private _inventoryMarketSaturation = uiNamespace getVariable ["PIMS_InventoryMarketSaturation", []];
     private _marketSaturation = uiNamespace getVariable ["PIMS_marketSaturation", []];
     private _market = uiNamespace getVariable ["PIMS_market", []];
+    private _inventoryItemLimit = uiNamespace getVariable ["PIMS_InventoryTypeLimit", []];
+    private _itemTypeCountAndLimit = [] call fn_getItemTypeCountAndLimit;
+    private _customItemTypes = uiNamespace getVariable ["PIMS_CustomItemTypes", []];
 
     if (_viewMode == 0 || _viewMode == 1) then {
-        private _selectedItem = nil; //TODO Test
+        private _selectedItem = nil;
         private _selectedItemClass = "";
         private _selectedItemQuantity = 0;
         private _selectedItemState = 0;
@@ -202,6 +206,31 @@ fn_updateDetailText = {
         private _weightKg = [_selectedItemClass] call fn_getWeightOfClass;
         private _availableQuantityOnMarket = [_selectedItemClass] call fn_getAvailableMarketQuantity;
 
+        private _category = ([_selectedItemClass] call BIS_fnc_itemType) select 1;
+        private _customCategory = _category;
+        private _itemLimit = -1;
+        {
+            if((_x select 1) isEqualTo _category) then {
+                _customCategory = (_x select 2);
+                break;
+            };
+        } forEach _customItemTypes;
+        {
+            if((_x select 1) isEqualTo _customCategory) then {
+                _itemLimit = (_x select 2);
+                break;
+            };
+        } forEach _inventoryItemLimit;
+        private _currentCountOfType = [_customCategory] call fn_currentAmountOFItemsOfCertainType;
+        private _allowedBuyingQuantity = _itemLimit - _currentCountOfType;
+
+        private _currentAmountOfTypeText = "";
+        if(_itemLimit == (-1)) then {
+            _currentAmountOfTypeText = parseText format["%1 of infinite", _currentCountOfType];
+        } else {
+            _currentAmountOfTypeText = parseText format["%1 of %2", _currentCountOfType, _itemLimit];
+        };
+        
         private _quantityEntry = (findDisplay 142351) displayCtrl 1800;
         _quantityEntry ctrlShow true;
 
@@ -218,16 +247,25 @@ fn_updateDetailText = {
             <br/><t>purchase price: </t><t color='#ffff00'>%6</t>
             <br/><t>quantity on market: </t><t color='#ffff00'>%7</t>
             <br/><br/><t>ammo count: </t><t color='#ffff00'>%8</t>
-            <br/><br/><t>current market saturation (nominal): </t><t color='#ffff00'>%9</t>
+            <br/><t>type: </t><t color='#ffff00'>%9</t>
+            <br/><t>current amount of this type: </t><t color='#ffff00'>%10</t>
+            <br/><br/><t>current market saturation (nominal): </t><t color='#ffff00'>%11</t>
             <br/><t>market saturation extra taxes:</t>
             <br/>",
-            _displayName, _selectedItemClass, _selectedItemQuantity, _weightKg, _sellPrice, _purchasePrice, _availableQuantityOnMarket, _selectedItemState, _inventoryMarketSaturation];
+            _displayName, _selectedItemClass, _selectedItemQuantity, _weightKg, _sellPrice, _purchasePrice, _availableQuantityOnMarket, _selectedItemState, _customCategory, _currentAmountOfTypeText, _inventoryMarketSaturation];
 
             for "_i" from 0 to ((count _marketSaturation) - 1) do {
-                //_string = format ["PIMS DEBUG: fn_updateDetailText. _i: %1, _marketSaturation: %2", _i, _marketSaturation];
-                //[_string] remoteExec ["systemChat", 0];
                 private _currentMarketSaturation = _marketSaturation select _i;
                 private _currentStructuredText = parseText format["<t color='#ffff00' size='0.75'>$%1</t><t size='0.75'> - </t><t color='#00cdff' size='0.75'>%2%3</t><br/>", _currentMarketSaturation select 0, _currentMarketSaturation select 1, "%"];
+                _structuredText = composeText [_structuredText, _currentStructuredText];
+            };
+
+            private _itemTypeLimitText = parseText format["<br/><t>item types with limits:</t><br/>"];
+            _structuredText = composeText [_structuredText, _itemTypeLimitText];
+
+            for "_i" from 0 to ((count _itemTypeCountAndLimit) - 1) do {
+                private _itemTypeCountAndLimitEntry = _itemTypeCountAndLimit select _i;
+                private _currentStructuredText = parseText format["<t color='#ffff00' size='0.75'>%1</t><t size='0.75'> - </t><t color='#00cdff' size='0.75'>%2 of %3</t><br/>", _itemTypeCountAndLimitEntry select 0, _itemTypeCountAndLimitEntry select 1, _itemTypeCountAndLimitEntry select 2];
                 _structuredText = composeText [_structuredText, _currentStructuredText];
             };
 
@@ -237,7 +275,7 @@ fn_updateDetailText = {
             private _sellButton = (findDisplay 142351) displayCtrl 1600;
             _sellButton ctrlShow true;
 
-            private _sellButtonText =  parseText format ["sell %1x:<br/>%2", _editQuantity, _sellPriceWithSaturation];
+            private _sellButtonText =  parseText format ["sell %1:<br/>%2", _editQuantity, _sellPriceWithSaturation];
             _sellButton ctrlSetStructuredText _sellButtonText;
             if(_editQuantity > _selectedItemQuantity) then {
                 _sellButton ctrlEnable false;
@@ -247,14 +285,14 @@ fn_updateDetailText = {
 
             private _buyButton = (findDisplay 142351) displayCtrl 1601;
 
-            private _buyButtonext =  parseText format ["buy %1x:<br/>%2", _editQuantity, (_purchasePrice * _editQuantity)];
+            private _buyButtonext =  parseText format ["buy %1:<br/>%2", _editQuantity, (_purchasePrice * _editQuantity)];
             if(_purchasePrice == -1) then {
-                _buyButtonext =  parseText format ["buy %1x:<br/>%2", _editQuantity, _purchasePrice];
+                _buyButtonext =  parseText format ["buy %1:<br/>%2", _editQuantity, _purchasePrice];
             };
             _buyButton ctrlSetStructuredText _buyButtonext;
             _buyButton ctrlShow true;
 
-            if((_purchasePrice == (-1)) or ((_purchasePrice * _editQuantity) > _inventoryMoney)) then {
+            if((_purchasePrice == (-1)) or ((_purchasePrice * _editQuantity) > _inventoryMoney) or ((_allowedBuyingQuantity < _editQuantity) && (_itemLimit != (-1)))) then {
                 _buyButton ctrlEnable false;
             } else {
                 _buyButton ctrlEnable true;
@@ -262,8 +300,13 @@ fn_updateDetailText = {
 
             private _retrieveButton = (findDisplay 142351) displayCtrl 1602;
             _retrieveButton ctrlShow true;
-            private _retrieveButtonText = parseText format ["Retrieve<br/>%1x", _editQuantity];
+            private _retrieveButtonText = parseText format ["Retrieve<br/>%1", _editQuantity];
             _retrieveButton ctrlSetStructuredText _retrieveButtonText;
+
+            private _retrieveAllButton = (findDisplay 142351) displayCtrl 1603;
+            _retrieveAllButton ctrlShow true;
+            private _retrieveAllButtonText = parseText format ["Retrieve<br/>All Items"];
+            _retrieveAllButton ctrlSetStructuredText _retrieveAllButtonText;
 
             if(_editQuantity > _selectedItemQuantity) then {
                 _retrieveButton ctrlEnable false;
@@ -281,8 +324,10 @@ fn_updateDetailText = {
             <br/><t>weight: </t><t color='#ffff00'>%3</t>
             <br/><t>sell price: </t><t color='#ffff00'>%4</t>
             <br/><t>purchase price: </t><t color='#ffff00'>%5</t>
-            <br/><t>available quantity: </t><t color='#ffff00'>%6</t>",
-            _displayName, _selectedItemClass, _weightKg, _sellPrice, _purchasePrice, _availableQuantityOnMarket];
+            <br/><t>available quantity: </t><t color='#ffff00'>%6</t>
+            <br/><t>type: </t><t color='#ffff00'>%7</t>
+            <br/><t>current amount of this type: </t><t color='#ffff00'>%8</t>",
+            _displayName, _selectedItemClass, _weightKg, _sellPrice, _purchasePrice, _availableQuantityOnMarket, _customCategory, _currentAmountOfTypeText];
 
             private _itemTextCtrl = (findDisplay 142351) displayCtrl 1000;
             _itemTextCtrl ctrlSetStructuredText _structuredText;
@@ -291,16 +336,19 @@ fn_updateDetailText = {
             _sellButton ctrlShow false;
 
             private _buyButton = (findDisplay 142351) displayCtrl 1601;
-            private _buyButtonext =  parseText format ["buy %1x:<br/>%2", _editQuantity, (_purchasePrice * _editQuantity)];
+            private _buyButtonext =  parseText format ["buy %1:<br/>%2", _editQuantity, (_purchasePrice * _editQuantity)];
             _buyButton ctrlSetStructuredText _buyButtonext;
             _buyButton ctrlShow true;
-            if((_purchasePrice == (-1)) or ((_purchasePrice * _editQuantity) > _inventoryMoney)) then {
+            if((_purchasePrice == (-1)) or ((_purchasePrice * _editQuantity) > _inventoryMoney) or ((_allowedBuyingQuantity < _editQuantity) && (_itemLimit != (-1)))) then {
                 _buyButton ctrlEnable false;
             } else {
                 _buyButton ctrlEnable true;
             };
             private _retrieveButton = (findDisplay 142351) displayCtrl 1602;
             _retrieveButton ctrlShow false;
+
+            private _retrieveAllButton = (findDisplay 142351) displayCtrl 1603;
+            _retrieveAllButton ctrlShow false;
         };
 
         if((_availableQuantityOnMarket < _editQuantity) && (_availableQuantityOnMarket != -1)) then {
@@ -339,8 +387,13 @@ fn_updateDetailText = {
         } else {
             _retrieveButton ctrlEnable false;
         };
-        private _retrieveButtonText = parseText format ["Retrieve<br/>%1x", _editQuantity];
+        private _retrieveButtonText = parseText format ["Retrieve<br/>%1", _editQuantity];
         _retrieveButton ctrlSetStructuredText _retrieveButtonText;
+
+        private _retrieveAllButton = (findDisplay 142351) displayCtrl 1603;
+        _retrieveAllButton ctrlShow true;
+        private _retrieveAllButtonText = parseText format ["Retrieve<br/>All"];
+        _retrieveAllButton ctrlSetStructuredText _retrieveAllButtonText;
     };
     if (_viewMode == 3 || _viewMode == 4) then {
         private _prices = [] call fn_getPricesVehicles;
@@ -393,6 +446,9 @@ fn_updateDetailText = {
             private _retrieveButtonText = parseText format ["Retrieve"];
             _retrieveButton ctrlSetStructuredText _retrieveButtonText;
             _retrieveButton ctrlEnable true;
+
+            private _retrieveAllButton = (findDisplay 142351) displayCtrl 1603;
+            _retrieveAllButton ctrlShow false;
         };
         if (_viewMode == 4) then {
             private _selectedVehicle = (_vehicleMarket select _selectedIndex);
@@ -440,6 +496,9 @@ fn_updateDetailText = {
                 _buyButton ctrlEnable true;
             };
 
+            private _retrieveAllButton = (findDisplay 142351) displayCtrl 1603;
+            _retrieveAllButton ctrlShow false;
+
             //TODO vehicle market (test)
         };
     };
@@ -476,6 +535,9 @@ fn_updateDetailText = {
 
         private _retrieveButton = (findDisplay 142351) displayCtrl 1602;
         _retrieveButton ctrlShow false;
+
+        private _retrieveAllButton = (findDisplay 142351) displayCtrl 1603;
+        _retrieveAllButton ctrlShow false;
     };
 
     if(!_areMarketsEnabled) then {
@@ -573,7 +635,7 @@ fn_getPrices = {
     _priceList;
 };
 
-fn_getPricesWithSaturation = { //TODO test
+fn_getPricesWithSaturation = {
     params ["_quantity"];
     //_string = format ["PIMS DEBUG: fn_getPricesWithSaturation called."];
     //[_string] remoteExec ["systemChat", 0];
@@ -759,8 +821,6 @@ fn_removeOneItemFromInventory = {
     params ["_index", "_quantity"];
     //_string = format ["PIMS DEBUG: fn_removeOneItemFromInventory called. _quantity: %1", _quantity];
     //[_string] remoteExec ["systemChat", 0];
-
-    private _quantity2 = _quantity;
     
     private _listOfItems = uiNamespace getVariable ["PIMS_listOfItems", "None"];
     private _selectedItem = _listOfItems select _index;
@@ -783,7 +843,7 @@ fn_removeOneItemFromInventory = {
     };
     //_string = format ["PIMS DEBUG: calling PIMS_fnc_PIMSRemoveItemFromDatabase._selectedItemId: %1, _quantity2: %2", _selectedItemId, _quantity2];
     //[_string] remoteExec ["systemChat", 0];
-    [_selectedItemId, _quantity2] remoteExec ["PIMS_fnc_PIMSRemoveItemFromDatabase", 2];
+    [_selectedItemId, _quantity] remoteExec ["PIMS_fnc_PIMSRemoveItemFromDatabase", 2];
 };
 
 fn_updateInfo = {
@@ -800,6 +860,8 @@ fn_updateInfo = {
     private _oldVehicleMarket = uiNamespace getVariable ["PIMS_vehicleMarket", []];
     private _oldMarketSaturation = uiNamespace getVariable ["PIMS_marketSaturation", []];
     private _oldInventoryMarketSaturation = uiNamespace getVariable ["PIMS_InventoryMarketSaturation", 0];
+    private _oldInventoryItemLimit = uiNamespace getVariable ["PIMS_InventoryTypeLimit", []];
+    private _oldCustomItemTypes = uiNamespace getVariable ["PIMS_CustomItemTypes", []];
 
     private _uid = getPlayerUID player;
     [_uid, _inventoryId] remoteExec ["PIMS_fnc_PIMSUpdateGuiInfoForPlayer", 2];
@@ -820,6 +882,8 @@ fn_updateInfo = {
     private _vehicleMarket = missionNamespace getVariable ["PIMSVehicleMarket" + _uid, _oldVehicleMarket];
     private _marketSaturation = missionNamespace getVariable ["PIMSMarketSaturation" + _uid, _oldMarketSaturation];
     private _inventoryMarketSaturation = missionNamespace getVariable ["PIMSInventoryMarketSaturation" + _uid, _oldInventoryMarketSaturation];
+    private _inventoryItemLimit = missionNamespace getVariable ["PIMSInventoryTypeLimit" + _uid, _oldInventoryItemLimit];
+    private _customItemTypes = missionNamespace getVariable ["PIMSCustomItemTypes" + _uid, _oldCustomItemTypes];
 
     //_string = format ["PIMS DEBUG: fn_updateInfo: count _listOfItems: %1, count _market: %2, _money: %3, count _allInventories %4, count _allContentItems: %5, _isAdmin: %6", count _listOfItems, count _market, _money, count _allInventories, count _allContentItems, _isAdmin];
     //[_string] remoteExec ["systemChat", 0];
@@ -835,6 +899,8 @@ fn_updateInfo = {
     uiNamespace setVariable ["PIMS_vehicleMarket", _vehicleMarket];
     uiNamespace setVariable ["PIMS_marketSaturation", _marketSaturation];
     uiNamespace setVariable ["PIMS_InventoryMarketSaturation", _inventoryMarketSaturation];
+    uiNamespace setVariable ["PIMS_InventoryTypeLimit", _inventoryItemLimit];
+    uiNamespace setVariable ["PIMS_CustomItemTypes", _customItemTypes];
 
     missionNamespace setVariable ["PIMSListOfItems" + _uid, nil, true];
     missionNamespace setVariable ["PIMSMoney" + _uid, nil, true];
@@ -847,6 +913,8 @@ fn_updateInfo = {
     missionNamespace setVariable ["PIMSVehicleMarket" + _uid, nil, true];
     missionNamespace setVariable ["PIMSMarketSaturation" + _uid, nil, true];
     missionNamespace setVariable ["PIMSInventoryMarketSaturation" + _uid, nil, true];
+    missionNamespace setVariable ["PIMSInventoryTypeLimit" + _uid, nil, true];
+    missionNamespace setVariable ["PIMSCustomItemTypes" + _uid, nil, true];
 
     //_string = format ["PIMS DEBUG: local Information updated."];
     //[_string] remoteExec ["systemChat", 0];
@@ -857,6 +925,41 @@ fn_updateInfo = {
 
     call fn_updateView; //TODO update smartly (only update necessary elements instead of deleting all and reinserting all)
     call fn_updateDetailText;
+};
+
+fn_currentAmountOFItemsOfCertainType = {
+    params ["_type"];
+    //_string = format ["PIMS DEBUG: fn_currentAmountOFItemsOfCertainType. _type: %1.", _type];
+    //[_string] remoteExec ["systemChat", 0];
+    private _listOfItems = uiNamespace getVariable ["PIMS_listOfItems", []];
+    private _customItemTypes = uiNamespace getVariable ["PIMS_CustomItemTypes", []];
+
+    private _itemCount = 0;
+    {
+        private _category = ([_x select 2] call BIS_fnc_itemType) select 1;
+        private _customCategory = _category;
+        {
+            if((_x select 1) isEqualTo _category) then {
+                _customCategory = (_x select 2);
+                break;
+            };
+        } forEach _customItemTypes;
+        if(_type isEqualTo _customCategory) then {
+            _itemCount = _itemCount + (_x select 3);
+        };
+    } forEach _listOfItems;
+
+    _itemCount;
+};
+
+fn_getItemTypeCountAndLimit = {
+    private _customItemTypes = uiNamespace getVariable ["PIMS_InventoryTypeLimit", []];
+    private _itemTypeCountAndLimit = [];
+    {
+        private _currentAmount = [(_x select 1)] call fn_currentAmountOFItemsOfCertainType;
+        _itemTypeCountAndLimit pushback [(_x select 1), _currentAmount, (_x select 2)];
+    } forEach _customItemTypes;
+    _itemTypeCountAndLimit;
 };
 
 onListboxSelectionChanged = {
@@ -976,6 +1079,41 @@ onRetrieveButtonPressed = {
     };
 };
 
+onRetrieveAllButtonPressed = {
+    params ["_control", "_button", "_xPos", "_yPos", "_shift", "_ctrl", "_alt"];
+    private _listOfItems =[];
+    _listOfItems = + (uiNamespace getVariable ["PIMS_listOfItems", []]);
+    private _containerId = uiNamespace getVariable ["PIMS_containerId", "None"];
+    private _moneyTypes = uiNamespace getVariable ["PIMS_MoneyTypes", []];
+    private _inventoryMoney = uiNamespace getVariable ["PIMS_inventoryMoney", 0];
+    private _inventoryId = uiNamespace getVariable ["PIMS_inventoryId", "None"];
+    private _viewMode = uiNamespace getVariable ["PIMS_ViewMode", "None"];
+    if(_viewMode == 0) then {
+        for "_i" from ((count _listOfItems) - 1) to 0 step -1 do {
+            private _selectedItem = _listOfItems select _i;
+            private _selectedItemClass = _selectedItem select 2;
+            private _selectedItemQuantity = _selectedItem select 3;
+            private _selectedItemState = _selectedItem select 4;
+            private _selectedItemId = _selectedItem select 0;
+
+            [_containerId, _selectedItemId, _selectedItemClass, _selectedItemState, _selectedItemQuantity] remoteExec ["PIMS_fnc_PIMSRetrieveItemFromDatabase", 2];
+            [_i, _selectedItemQuantity] call fn_removeOneItemFromInventory;
+        };
+    };
+    if(_viewMode == 2) then {
+        private _remainingAmmount = _inventoryMoney;
+        for "_i" from ((count _moneyTypes) - 1) to 0 step -1 do {
+            private _rest = _remainingAmmount mod ((_moneyTypes select _i) select 1);
+            private _fits = floor (_remainingAmmount / ((_moneyTypes select _i) select 1));
+            _remainingAmmount = _remainingAmmount - (_fits * ((_moneyTypes select _i) select 1));
+
+            private _moneyType = (_moneyTypes select _i) select 0;
+            [_containerId, Nil, _moneyType, "", _fits] remoteExec ["PIMS_fnc_PIMSRetrieveItemFromDatabase", 2];
+        };
+        [_inventoryId, _inventoryMoney * (-1)] remoteExec ["PIMS_fnc_PIMSChangeMoneyOfInventory", 2];
+    };
+};
+
 onBuyButtonPressed = {
     params ["_control", "_button", "_xPos", "_yPos", "_shift", "_ctrl", "_alt"];
     //_string = format ["PIMS DEBUG: onBuyButtonPressed called."];
@@ -1086,7 +1224,10 @@ onChangeView = {
         _viewMode = 0;
     };
     uiNamespace setVariable ["PIMS_ViewMode", _viewMode];
-    call fn_updateView;
+    uiNamespace setVariable ["PIMS_selectedItem", ""];
+    uiNamespace setVariable ["PIMS_selectedIndex", 0];
+    call fn_updateInfo;
+    call fn_updateDetailText;
 };
 
 onQuantityChanged = {
@@ -1108,31 +1249,65 @@ onUpdateInfo = {
 
 onUnload = {
     params ["_display", "_exitCode"];
-    _stringGlobal = format ["PIMS DEBUG: onUnload."];
-    [_stringGlobal] remoteExec ["systemChat", 0];
+    //_stringGlobal = format ["PIMS DEBUG: onUnload."];
+    //[_stringGlobal] remoteExec ["systemChat", 0];
     private _uid = getPlayerUID player;
     missionNamespace setVariable ["PIMS_closeMenu_" + _uid, true];
 };
 
-/*
+
 [] spawn {
     private _uid = getPlayerUID player;
     while {true} do {
+        missionNamespace setVariable ["PIMS_updateInfo_" + _uid, false, true];
         private _closeMenu = missionNamespace getVariable ["PIMS_closeMenu_" + _uid, false];
         if (_closeMenu) then {
             break;
         } else {
-            sleep 5;
-            call fn_updateInfo;
-            call fn_updateDetailText;
+            sleep 2;
         };
     };
-    _stringGlobal = format ["PIMS DEBUG: auto refresh closed."];
-    [_stringGlobal] remoteExec ["systemChat", 0];
+    //_stringGlobal = format ["PIMS DEBUG: auto refresh closed."];
+    //[_stringGlobal] remoteExec ["systemChat", 0];
+};
+/*
+[] spawn {
+    private _uid = getPlayerUID player;
+    while {true} do {
+        private _updateGui = missionNamespace getVariable ["PIMS_updateGui_" + _uid, false];
+        if(_updateGui) then {
+            call fn_updateDetailText;
+            call fn_updateView;
+            missionNamespace setVariable ["PIMS_updateGui_" + _uid, false, true];
+        };
+        private _closeMenu = missionNamespace getVariable ["PIMS_closeMenu_" + _uid, false];
+        if (_closeMenu) then {
+            break;
+        } else {
+            sleep 0.1;
+        };
+    };
+};
+
+[] spawn {
+    private _uid = getPlayerUID player;
+    while {true} do {
+        private _updateGui = missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false];
+        if(_updateGui) then {
+            call fn_updateInfo;
+            missionNamespace setVariable ["PIMS_updateInfo_" + _uid, false, true];
+        };
+        private _closeMenu = missionNamespace getVariable ["PIMS_closeMenu_" + _uid, false];
+        if (_closeMenu) then {
+            break;
+        } else {
+            sleep 0.1;
+        };
+    };
 };
 */
 
-_stringGlobal = format ["PIMS DEBUG: populating menu list. count _listOfItems: %1"];
-[_stringGlobal] remoteExec ["systemChat", 0];
+//_stringGlobal = format ["PIMS DEBUG: populating menu list. count _listOfItems: %1"];
+//[_stringGlobal] remoteExec ["systemChat", 0];
 call fn_updateInfo;
 call fn_updateDetailText;

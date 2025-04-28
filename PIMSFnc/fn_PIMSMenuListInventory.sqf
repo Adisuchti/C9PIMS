@@ -42,8 +42,7 @@ fn_updateView = {
     private _vehicleMarket = uiNamespace getVariable ["PIMS_vehicleMarket", []];
     //_string = format ["PIMS DEBUG: updating view. count of Items: %1, _viewMode: %2", count _listOfItems, _viewMode];
     //[_string] remoteExec ["systemChat", 0];
-    private _ctrl = (findDisplay 142351) displayCtrl 1500;
-    lbClear _ctrl;
+    private _listBoxEntries = [];
     if (_viewMode == 0) then {
         private _marketButtonCtrl = (findDisplay 142351) displayCtrl 1700;
         private _marketButtonText = format ["Inventory"];
@@ -51,12 +50,10 @@ fn_updateView = {
         for "_i" from 0 to ((count _listOfItems) - 1) do {
             private _value = [_i] call fn_convertDbItemToText;
             private _imagePath = [(_listOfItems select _i) select 2] call fn_getImagePathOfClass;
-            _ctrl lbAdd (_value);
-            _ctrl lbSetPicture[_i, _imagePath];
+            //_ctrl lbAdd (_value);
+            //_ctrl lbSetPicture[_i, _imagePath];
+            _listBoxEntries pushback [_value, _imagePath];
         };
-        private _structuredText = parseText format["<t size='2.0'>Money: %1</t>", _inventoryMoney];
-        private _moneyText = (findDisplay 142351) displayCtrl 1001;
-        _moneyText ctrlSetStructuredText _structuredText;
     };
     if (_viewMode == 1) then {
         for "_i" from 0 to ((count _market) - 1) do {
@@ -68,27 +65,23 @@ fn_updateView = {
             private _imagePath = [(_market select _i) select 1] call fn_getImagePathOfClass;
             //_string = format ["PIMS DEBUG: _imagePath: %1", _imagePath];
             //[_string] remoteExec ["systemChat", 0];
-            _ctrl lbAdd (_value);
-            _ctrl lbSetPicture[_i, _imagePath];
+            //_ctrl lbAdd (_value);
+            //_ctrl lbSetPicture[_i, _imagePath];
+            _listBoxEntries pushback [_value, _imagePath];
         };
-        private _structuredText = parseText format["<t size='2.0'>Money: %1</t>", _inventoryMoney];
-        private _moneyText = (findDisplay 142351) displayCtrl 1001;
-        _moneyText ctrlSetStructuredText _structuredText;
 
         private _marketButtonCtrl = (findDisplay 142351) displayCtrl 1700;
         private _marketButtonText = format ["Market"];
         _marketButtonCtrl ctrlSetText _marketButtonText;
     };
     if (_viewMode == 2) then {
-        private _structuredText = parseText format["<t size='2.0'>Money: %1</t>", _inventoryMoney];
-        private _moneyText = (findDisplay 142351) displayCtrl 1001;
-        _moneyText ctrlSetStructuredText _structuredText;
 
         for "_i" from 0 to ((count _moneyTypes) - 1) do {
             private _displayName = [(_moneyTypes select _i) select 0] call fn_getDisplayNameOfClass;
-            _ctrl lbAdd (_displayName);
+            //_ctrl lbAdd (_displayName);
             private _imagePath = [(_moneyTypes select _i) select 0] call fn_getImagePathOfClass;
-            _ctrl lbSetPicture[_i, _imagePath];
+            //_ctrl lbSetPicture[_i, _imagePath];
+            _listBoxEntries pushback [_displayName, _imagePath];
         };
 
         private _marketButtonCtrl = (findDisplay 142351) displayCtrl 1700;
@@ -103,8 +96,9 @@ fn_updateView = {
         for "_i" from 0 to ((count _listOfVehicles) - 1) do {
             private _value = [_i] call fn_convertDbItemToText;
             private _imagePath = [(_listOfVehicles select _i) select 2] call fn_getImagePathOfClass;
-            _ctrl lbAdd (_value);
-            _ctrl lbSetPicture[_i, _imagePath];
+            //_ctrl lbAdd (_value);
+            //_ctrl lbSetPicture[_i, _imagePath];
+            _listBoxEntries pushback [_value, _imagePath];
         };
     };
     if (_viewMode == 4) then {
@@ -115,22 +109,29 @@ fn_updateView = {
         for "_i" from 0 to ((count _vehicleMarket) - 1) do {
             private _value = [_i] call fn_convertDbItemToText;
             private _imagePath = [(_vehicleMarket select _i) select 2] call fn_getImagePathOfClass;
-            _ctrl lbAdd (_value);
-            _ctrl lbSetPicture[_i, _imagePath];
+            //_ctrl lbAdd (_value);
+            //_ctrl lbSetPicture[_i, _imagePath];
+            _listBoxEntries pushback [_value, _imagePath];
         };
     };
     if (_viewMode == 5) then {
+        private _marketButtonCtrl = (findDisplay 142351) displayCtrl 1700;
+        private _marketButtonText = format ["Admin"];
+        _marketButtonCtrl ctrlSetText _marketButtonText;
+
         for "_i" from 0 to ((count _allInventories) - 1) do {
             private _value = (str ((_allInventories select _i) select 0)) + " ; " + (str ((_allInventories select _i) select 1));
-            _ctrl lbAdd (_value);
-
-            private _structuredText = parseText format["<t size='2.0'>Admin Panel</t>"];
-            private _moneyText = (findDisplay 142351) displayCtrl 1001;
-            _moneyText ctrlSetStructuredText _structuredText;
-
-            private _marketButtonCtrl = (findDisplay 142351) displayCtrl 1700;
-            private _marketButtonText = format ["Admin"];
-            _marketButtonCtrl ctrlSetText _marketButtonText;
+            //_ctrl lbAdd (_value);
+            _listBoxEntries pushback [_value, ""];
+        };
+    };
+    private _ctrl = (findDisplay 142351) displayCtrl 1500;
+    lbClear _ctrl;
+    for "_i" from 0 to ((count _listBoxEntries) - 1) do {
+        private _entry = _listBoxEntries select _i;
+        _ctrl lbAdd (_entry select 0);
+        if(_entry select 1 != "") then {
+            _ctrl lbSetPicture[_i, _entry select 1];
         };
     };
 };
@@ -866,7 +867,7 @@ fn_updateInfo = {
     private _uid = getPlayerUID player;
     [_uid, _inventoryId] remoteExec ["PIMS_fnc_PIMSUpdateGuiInfoForPlayer", 2];
 
-    sleep 1;
+    //sleep 1;
 
     waitUntil { missionNamespace getVariable ["PIMSDone" + _uid, false];};
     missionNamespace setVariable ["PIMSDone" + _uid, false, true];
@@ -1226,6 +1227,8 @@ onChangeView = {
     uiNamespace setVariable ["PIMS_ViewMode", _viewMode];
     uiNamespace setVariable ["PIMS_selectedItem", ""];
     uiNamespace setVariable ["PIMS_selectedIndex", 0];
+    private _ctrl = (findDisplay 142351) displayCtrl 1500;
+    _ctrl lbSetCurSel 0;
     call fn_updateInfo;
     call fn_updateDetailText;
 };
@@ -1259,18 +1262,22 @@ onUnload = {
 [] spawn {
     private _uid = getPlayerUID player;
     while {true} do {
-        missionNamespace setVariable ["PIMS_updateInfo_" + _uid, false, true];
+        //missionNamespace setVariable ["PIMS_updateInfo_" + _uid, false, true];
+        0 = [] spawn {
+            call fn_updateInfo;
+            //call fn_updateDetailText;
+        };
         private _closeMenu = missionNamespace getVariable ["PIMS_closeMenu_" + _uid, false];
         if (_closeMenu) then {
             break;
         } else {
-            sleep 2;
+            sleep 1;
         };
     };
     //_stringGlobal = format ["PIMS DEBUG: auto refresh closed."];
     //[_stringGlobal] remoteExec ["systemChat", 0];
 };
-/*
+/* TODO implement these tasks that "listen" to requests for updating info and updating gui
 [] spawn {
     private _uid = getPlayerUID player;
     while {true} do {
@@ -1309,5 +1316,7 @@ onUnload = {
 
 //_stringGlobal = format ["PIMS DEBUG: populating menu list. count _listOfItems: %1"];
 //[_stringGlobal] remoteExec ["systemChat", 0];
+//missionNamespace setVariable ["PIMS_updateInfo_" + _uidGlobal, false, true];
+//missionNamespace setVariable ["PIMS_updateGui_" + _uidGlobal, false, true];
 call fn_updateInfo;
 call fn_updateDetailText;

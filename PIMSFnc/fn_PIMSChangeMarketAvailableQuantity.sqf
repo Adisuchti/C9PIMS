@@ -1,7 +1,7 @@
 params ["_itemClass", "_changeQuantity"];
 
-_string = format ["PIMS DEBUG: ChangeMarketAvailabilableQuantity called. _itemClass: %1, _changeQuantity: %2.", _itemClass, _changeQuantity];
-[_string] remoteExec ["systemChat", 0];
+//_string = format ["PIMS DEBUG: ChangeMarketAvailabilableQuantity called. _itemClass: %1, _changeQuantity: %2.", _itemClass, _changeQuantity];
+//[_string] remoteExec ["systemChat", 0];
 
 private _success = true;
 private _string = "";

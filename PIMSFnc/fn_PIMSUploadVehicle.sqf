@@ -49,7 +49,7 @@ if(_vehicleType != "") then {
 	private _result = "extDB3" callExtension _query;
 	_result = parseSimpleArray _result;
 
-	if((str (_result select 0)) == "0") then {
+	if((str (_result select 0)) == "0") then { //TODO Log
 		_string = format ["PIMS ERROR: SQL error: %1", _result];
 		[_string] remoteExec ["systemChat", 0];
 		//_string = format ["PIMS ERROR: SQL error. _inventoryId: %1, _vehicleType: %2, Vehicle_Fuel: %3", _inventoryId, _vehicleType, _fuelLevel];

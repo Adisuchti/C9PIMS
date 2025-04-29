@@ -12,6 +12,8 @@ _resultArray = _resultArray select 1;
 
 if(count _resultArray == 1) then {
     private _quantity = ((_resultArray select 0) select 3);
+    private _class = ((_resultArray select 0) select 2);
+    private _inventoryId = ((_resultArray select 0) select 1);
 
     if(_quantity <= _removeQuantity) then {
         _query = format ["0:SQLProtocol:DELETE FROM `content_items` WHERE `Content_Item_Id` = %1", _itemId];
@@ -20,6 +22,14 @@ if(count _resultArray == 1) then {
         if((str (_resultArray select 0)) == "0") then {
             _string = format ["PIMS ERROR: SQL error. %1", _query];
             [_string] remoteExec ["systemChat", 0];
+        } else {
+            _query = format ["0:SQLProtocol:INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`) VALUES ('%1', %2, '%3');", _class, (_removeQuantity * (-1)), _inventoryId];
+            _result = "extDB3" callExtension _query;
+            _resultArray = parseSimpleArray _result;
+            if(str (_resultArray select 0) isEqualTo "0") then {
+                _string = format ["PIMS ERROR: SQL error Logs. %1", _query];
+                [_string] remoteExec ["systemChat", 0];
+            };
         };
         if(_quantity < _removeQuantity) then {
             _string = format ["PIMS ERROR: item quantity to be removed greater than quantity present. `Content_Item_Id` = %1", _itemId];
@@ -32,6 +42,14 @@ if(count _resultArray == 1) then {
         if((str (_resultArray select 0)) == "0") then {
             _string = format ["PIMS ERROR: SQL error. %1", _query];
             [_string] remoteExec ["systemChat", 0];
+        } else {
+            _query = format ["0:SQLProtocol:INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`) VALUES ('%1', %2, '%3');", _class, (_removeQuantity * (-1)), _inventoryId];
+            _result = "extDB3" callExtension _query;
+            _resultArray = parseSimpleArray _result;
+            if(str (_resultArray select 0) isEqualTo "0") then {
+                _string = format ["PIMS ERROR: SQL error Logs. %1", _query];
+                [_string] remoteExec ["systemChat", 0];
+            };
         };
     };
 } else {

@@ -25,6 +25,7 @@ uiNamespace setVariable ["PIMS_MoneyTypes", [["PIMS_Money_1", 1], ["PIMS_Money_1
 uiNamespace setVariable ["PIMS_listOfVehicles", []];
 uiNamespace setVariable ["PIMS_marketSaturation", []];
 uiNamespace setVariable ["PIMS_InventoryMarketSaturation", []];
+uiNamespace setVariable ["PIMS_Uid", _uidGlobal];
 missionNamespace setVariable ["PIMS_closeMenu_" + _uidGlobal, false];
 
 fn_updateView = {
@@ -869,7 +870,7 @@ fn_updateInfo = {
 
     //sleep 1;
 
-    waitUntil { missionNamespace getVariable ["PIMSDone" + _uid, false];};
+    waitUntil {(missionNamespace getVariable ["PIMSDone" + _uid, false])};
     missionNamespace setVariable ["PIMSDone" + _uid, false, true];
 
     private _listOfItems = missionNamespace getVariable ["PIMSListOfItems" + _uid, _oldListOfItems];
@@ -920,12 +921,11 @@ fn_updateInfo = {
     //_string = format ["PIMS DEBUG: local Information updated."];
     //[_string] remoteExec ["systemChat", 0];
 
-    
     //_string = format ["PIMS DEBUG: _listOfVehicles: %1, _allVehicles: %2, _vehicleMarket: %3", _listOfVehicles, _allVehicles, _vehicleMarket];
     //[_string] remoteExec ["systemChat", 0];
 
-    call fn_updateView; //TODO update smartly (only update necessary elements instead of deleting all and reinserting all)
-    call fn_updateDetailText;
+    //call fn_updateView; //TODO update smartly (only update necessary elements instead of deleting all and reinserting all)
+    //call fn_updateDetailText;
 };
 
 fn_currentAmountOFItemsOfCertainType = {
@@ -982,7 +982,10 @@ onSellButtonPressed = {
     private _sellButton = (findDisplay 142351) displayCtrl 1600;
     _sellButton ctrlEnable false;
 
-    [] call fn_updateInfo;
+    private _uid = uinamespace getvariable ["PIMS_Uid", -1];
+    missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+    waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
+    //[] call fn_updateInfo;
 
     private _editQuantity = uiNamespace getVariable ["PIMS_quantity", 1];
     private _viewMode = uiNamespace getVariable ["PIMS_ViewMode", "None"];
@@ -1030,8 +1033,12 @@ onSellButtonPressed = {
         [_selectedInventoryId, (_editQuantity * (-1))] remoteExec ["PIMS_fnc_PIMSChangeMoneyOfInventory", 2];
     };
     _sellButton ctrlEnable true;
-    [] call fn_updateInfo;
-    [] call fn_updateDetailText;
+
+    missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+    waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
+
+    //[] call fn_updateInfo;
+    //[] call fn_updateDetailText;
 };
 
 onRetrieveButtonPressed = {
@@ -1047,11 +1054,15 @@ onRetrieveButtonPressed = {
     private _inventoryId = uiNamespace getVariable ["PIMS_inventoryId", "None"];
     private _listOfVehicles = uiNamespace getVariable ["PIMS_listOfVehicles", []];
 
+    private _uid = uinamespace getvariable ["PIMS_Uid", -1];
+    missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+    waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
+
     if(_viewMode == 0) then {
         private _retrieveButton = (findDisplay 142351) displayCtrl 1602;
         _retrieveButton ctrlEnable false;
 
-        [] call fn_updateInfo;
+        //[] call fn_updateInfo;
 
         private _selectedItem = _listOfItems select _selectedIndex;
         private _selectedItemClass = _selectedItem select 2;
@@ -1063,14 +1074,21 @@ onRetrieveButtonPressed = {
         [_selectedIndex, _editQuantity] call fn_removeOneItemFromInventory;
 
         uiNamespace setVariable ["PIMS_listOfItems", _listOfItems];
-        [] call fn_updateInfo;
-        [] call fn_updateDetailText;
+
+        missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+        waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
+
+        //[] call fn_updateInfo;
+        //[] call fn_updateDetailText;
         _retrieveButton ctrlEnable true;
     };
-    if(_viewMode == 2) then {
+    if(_viewMode == 2) then {    
         private _moneyType = (_moneyTypes select _selectedIndex) select 0;
         [_containerId, Nil, _moneyType, "", _editQuantity] remoteExec ["PIMS_fnc_PIMSRetrieveItemFromDatabase", 2];
         [_inventoryId, (((_moneyTypes select _selectedIndex) select 1) * _editQuantity) * (-1)] remoteExec ["PIMS_fnc_PIMSChangeMoneyOfInventory", 2];
+
+        missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+        waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
     };
     if(_viewMode == 3) then {
         private _myVehicle = _listOfVehicles select _selectedIndex;
@@ -1113,6 +1131,10 @@ onRetrieveAllButtonPressed = {
         };
         [_inventoryId, _inventoryMoney * (-1)] remoteExec ["PIMS_fnc_PIMSChangeMoneyOfInventory", 2];
     };
+
+    private _uid = uinamespace getvariable ["PIMS_Uid", -1];
+    missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+    waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
 };
 
 onBuyButtonPressed = {
@@ -1123,7 +1145,11 @@ onBuyButtonPressed = {
     private _buyButton = (findDisplay 142351) displayCtrl 1601;
     _buyButton ctrlEnable false;
 
-    [] call fn_updateInfo;
+    //[] call fn_updateInfo;
+
+    private _uid = uinamespace getvariable ["PIMS_Uid", -1];
+    missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+    waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
 
     private _selectedItemText = uiNamespace getVariable ["PIMS_selectedItem", "None"];
     private _containerId = uiNamespace getVariable ["PIMS_containerId", "None"];
@@ -1202,8 +1228,12 @@ onBuyButtonPressed = {
         //[_string] remoteExec ["systemChat", 0];
     };
     _buyButton ctrlEnable true;
-    [] call fn_updateInfo;
-    [] call fn_updateDetailText;
+
+    missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+    waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
+
+    //[] call fn_updateInfo;
+    //[] call fn_updateDetailText;
 };
 
 onChangeView = {
@@ -1229,8 +1259,13 @@ onChangeView = {
     uiNamespace setVariable ["PIMS_selectedIndex", 0];
     private _ctrl = (findDisplay 142351) displayCtrl 1500;
     _ctrl lbSetCurSel 0;
-    call fn_updateInfo;
-    call fn_updateDetailText;
+
+    private _uid = uinamespace getvariable ["PIMS_Uid", -1];
+    missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+    waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
+
+    //call fn_updateInfo;
+    //call fn_updateDetailText;
 };
 
 onQuantityChanged = {
@@ -1242,12 +1277,21 @@ onQuantityChanged = {
     };
 
     uiNamespace setVariable ["PIMS_quantity", _parsedNumber];
-    [] call fn_updateDetailText;
+
+    private _uid = uinamespace getvariable ["PIMS_Uid", -1];
+    missionNamespace setVariable ["PIMS_updateGui_" + _uid, true, true];
+    waitUntil {(missionNamespace getVariable ["PIMS_updateGui_" + _uid, false]) == false};
+
+    //[] call fn_updateDetailText;
 };
 
 onUpdateInfo = {
     params ["_control", "_button", "_xPos", "_yPos", "_shift", "_ctrl", "_alt"];
-    call fn_updateInfo;
+
+    private _uid = uinamespace getvariable ["PIMS_Uid", -1];
+    missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+
+    //call fn_updateInfo;
 };
 
 onUnload = {
@@ -1258,15 +1302,20 @@ onUnload = {
     missionNamespace setVariable ["PIMS_closeMenu_" + _uid, true];
 };
 
-
+/*
+//auto update every x seconds task
 [] spawn {
     private _uid = getPlayerUID player;
     while {true} do {
         //missionNamespace setVariable ["PIMS_updateInfo_" + _uid, false, true];
         0 = [] spawn {
-            call fn_updateInfo;
+            private _uid = getPlayerUID player;
+            missionNamespace setVariable ["PIMS_updateInfo_" + _uid, true, true];
+
+            //call fn_updateInfo;
             //call fn_updateDetailText;
         };
+        waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
         private _closeMenu = missionNamespace getVariable ["PIMS_closeMenu_" + _uid, false];
         if (_closeMenu) then {
             break;
@@ -1277,15 +1326,20 @@ onUnload = {
     //_stringGlobal = format ["PIMS DEBUG: auto refresh closed."];
     //[_stringGlobal] remoteExec ["systemChat", 0];
 };
-/* TODO implement these tasks that "listen" to requests for updating info and updating gui
+*/
+//update Gui task
 [] spawn {
     private _uid = getPlayerUID player;
     while {true} do {
         private _updateGui = missionNamespace getVariable ["PIMS_updateGui_" + _uid, false];
         if(_updateGui) then {
-            call fn_updateDetailText;
-            call fn_updateView;
-            missionNamespace setVariable ["PIMS_updateGui_" + _uid, false, true];
+            0 = [] spawn {
+                private _uid = getPlayerUID player;
+                call fn_updateDetailText;
+                call fn_updateView;
+                missionNamespace setVariable ["PIMS_updateGui_" + _uid, false, true];
+            };
+            waitUntil {(missionNamespace getVariable ["PIMS_updateGui_" + _uid, false]) == false};
         };
         private _closeMenu = missionNamespace getVariable ["PIMS_closeMenu_" + _uid, false];
         if (_closeMenu) then {
@@ -1296,13 +1350,19 @@ onUnload = {
     };
 };
 
+//update Info task
 [] spawn {
     private _uid = getPlayerUID player;
     while {true} do {
         private _updateGui = missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false];
         if(_updateGui) then {
-            call fn_updateInfo;
-            missionNamespace setVariable ["PIMS_updateInfo_" + _uid, false, true];
+            0 = [] spawn {
+                private _uid = getPlayerUID player;
+                call fn_updateInfo;
+                missionNamespace setVariable ["PIMS_updateInfo_" + _uid, false, true];
+                missionNamespace setVariable ["PIMS_updateGui_" + _uid, true, true];
+            };
+            waitUntil {(missionNamespace getVariable ["PIMS_updateInfo_" + _uid, false]) == false};
         };
         private _closeMenu = missionNamespace getVariable ["PIMS_closeMenu_" + _uid, false];
         if (_closeMenu) then {
@@ -1312,11 +1372,11 @@ onUnload = {
         };
     };
 };
-*/
+
 
 //_stringGlobal = format ["PIMS DEBUG: populating menu list. count _listOfItems: %1"];
 //[_stringGlobal] remoteExec ["systemChat", 0];
-//missionNamespace setVariable ["PIMS_updateInfo_" + _uidGlobal, false, true];
-//missionNamespace setVariable ["PIMS_updateGui_" + _uidGlobal, false, true];
-call fn_updateInfo;
-call fn_updateDetailText;
+missionNamespace setVariable ["PIMS_updateInfo_" + _uidGlobal, true, true];
+missionNamespace setVariable ["PIMS_updateGui_" + _uidGlobal, true, true];
+//call fn_updateInfo;
+//call fn_updateDetailText;

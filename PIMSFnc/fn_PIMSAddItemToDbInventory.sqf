@@ -84,12 +84,13 @@ if(_money > 0) then {
             _string = format ["PIMS ERROR: SQL error. %1", _query];
             [_string] remoteExec ["systemChat", 0];
         } else {
-        _query = format ["0:SQLProtocol:INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`) VALUES ('%1', %2, '%3');", _itemClass, _quantity, _inventoryId];
-        _result = "extDB3" callExtension _query;
-        _resultArray = parseSimpleArray _result;
-        if(str (_resultArray select 0) isEqualTo "0") then {
-            _string = format ["PIMS ERROR: SQL error Logs. %1", _query];
-            [_string] remoteExec ["systemChat", 0];
+            _query = format ["0:SQLProtocol:INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`) VALUES ('%1', %2, '%3');", _itemClass, _quantity, _inventoryId];
+            _result = "extDB3" callExtension _query;
+            _resultArray = parseSimpleArray _result;
+            if(str (_resultArray select 0) isEqualTo "0") then {
+                _string = format ["PIMS ERROR: SQL error Logs. %1", _query];
+                [_string] remoteExec ["systemChat", 0];
+            };
         };
     } else {
         _query = format ["0:SQLProtocol:INSERT INTO `content_items` (`Inventory_Id`, `Item_Class`, `Item_Quantity`, `Item_Properties`) VALUES (%1, '%2', %3, '%4');", _inventoryId, _itemClass,  _quantity,  _itemState];
@@ -102,12 +103,13 @@ if(_money > 0) then {
             _string = format ["PIMS ERROR: SQL error. %1", _query];
             [_string] remoteExec ["systemChat", 0];
         } else {
-        _query = format ["0:SQLProtocol:INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`) VALUES ('%1', %2, '%3');", _itemClass, _quantity, _inventoryId];
-        _result = "extDB3" callExtension _query;
-        _resultArray = parseSimpleArray _result;
-        if(str (_resultArray select 0) isEqualTo "0") then {
-            _string = format ["PIMS ERROR: SQL error Logs. %1", _query];
-            [_string] remoteExec ["systemChat", 0];
+            _query = format ["0:SQLProtocol:INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`) VALUES ('%1', %2, '%3');", _itemClass, _quantity, _inventoryId];
+            _result = "extDB3" callExtension _query;
+            _resultArray = parseSimpleArray _result;
+            if(str (_resultArray select 0) isEqualTo "0") then {
+                _string = format ["PIMS ERROR: SQL error Logs. %1", _query];
+                [_string] remoteExec ["systemChat", 0];
+            };
         };
     };
     _query = format ["0:SQLProtocol:SELECT `Item_Id`, `Item_Class`, `Item_Type`, `Item_Display_Name` FROM `items` WHERE `Item_Class` = '%1';", _itemClass];

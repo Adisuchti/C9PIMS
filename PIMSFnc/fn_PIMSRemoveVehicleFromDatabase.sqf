@@ -9,4 +9,4 @@ private _resultArray = parseSimpleArray _result;
 if((str (_resultArray select 0)) == "0") then {
 	_string = format ["PIMS ERROR: SQL error. DELETE query failed."];
 	[_string] remoteExec ["systemChat", 0];
-};
+}; //TODO Logs

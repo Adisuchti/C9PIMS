@@ -2,8 +2,8 @@ params ["_uid","_inventoryId"];
 
 private _string = "";
 
-_string = format ["PIMS DEBUG: PIMSUpdateGuiInfoForPlayer started."];
-[_string] remoteExec ["systemChat", 0];
+//_string = format ["PIMS DEBUG: PIMSUpdateGuiInfoForPlayer started."];
+//[_string] remoteExec ["systemChat", 0];
 
 private _query = format ["0:SQLProtocol:SELECT `AdminId`, `PlayerId` FROM `admins` WHERE `PlayerId` = %1;", _uid];
 private _result = "extDB3" callExtension _query;
@@ -143,8 +143,26 @@ _inventoryMarketSaturation = _inventoryMarketSaturation select 1;
 _inventoryMarketSaturation = _inventoryMarketSaturation select 0;
 _inventoryMarketSaturation = _inventoryMarketSaturation select 0;
 
-_string = format ["PIMS DEBUG: PIMSUpdateGuiInfoForPlayer: count _inventoryItemList: %1, count _market: %2, _money: %3, count _allInventories %4, count _allContentItems: %5, _isAdmin: %6", count _inventoryItemList, count _market, _money, count _allInventories, count _allContentItems, _isAdmin];
-[_string] remoteExec ["systemChat", 0];
+_query = format ["0:SQLProtocol:SELECT `Item_Type_Limit_Id`, `Item_Type`, `Item_Limit` FROM `item_type_inventory_limit`;"];
+_result = "extDB3" callExtension _query;
+private _inventoryTypeLimit = parseSimpleArray _result;
+if((str (_inventoryTypeLimit select 0)) == "0") then {
+    _string = format ["PIMS ERROR: SQL error. %1", _query];
+   [_string] remoteExec ["systemChat", 0];
+};
+_inventoryTypeLimit = _inventoryTypeLimit select 1;
+
+_query = format ["0:SQLProtocol:SELECT `Custom_Item_type_Id`, `Original_Item_Type`, `Custom_Item_Type` FROM `custom_item_types`;"];
+_result = "extDB3" callExtension _query;
+private _customItemTypes = parseSimpleArray _result;
+if((str (_customItemTypes select 0)) == "0") then {
+    _string = format ["PIMS ERROR: SQL error. %1", _query];
+   [_string] remoteExec ["systemChat", 0];
+};
+_customItemTypes = _customItemTypes select 1;
+
+//_string = format ["PIMS DEBUG: PIMSUpdateGuiInfoForPlayer: count _inventoryItemList: %1, count _market: %2, _money: %3, count _allInventories %4, count _allContentItems: %5, _isAdmin: %6", count _inventoryItemList, count _market, _money, count _allInventories, count _allContentItems, _isAdmin];
+//[_string] remoteExec ["systemChat", 0];
 
 //_string = format ["PIMS DEBUG: PIMSUpdateGuiInfoForPlayer: _allInventories: %1, _allContentItems: %2", _allInventories,  _allContentItems];
 //[_string] remoteExec ["systemChat", 0];
@@ -163,5 +181,7 @@ missionNamespace setVariable ["PIMSListOfVehicles" + _uid, _listOfVehicles, true
 missionNamespace setVariable ["PIMSVehicleMarket" + _uid, _vehicleMarket, true];
 missionNamespace setVariable ["PIMSMarketSaturation" + _uid, _marketSaturation, true];
 missionNamespace setVariable ["PIMSInventoryMarketSaturation" + _uid, _inventoryMarketSaturation, true];
+missionNamespace setVariable ["PIMSInventoryTypeLimit" + _uid, _inventoryTypeLimit, true];
+missionNamespace setVariable ["PIMSCustomItemTypes" + _uid, _customItemTypes, true];
 
 missionNamespace setVariable ["PIMSDone" + _uid, true, true];

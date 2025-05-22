@@ -143,7 +143,10 @@ _inventoryMarketSaturation = _inventoryMarketSaturation select 1;
 _inventoryMarketSaturation = _inventoryMarketSaturation select 0;
 _inventoryMarketSaturation = _inventoryMarketSaturation select 0;
 
-_query = format ["0:SQLProtocol:SELECT `Item_Type_Limit_Id`, `Item_Type`, `Item_Limit` FROM `item_type_inventory_limit`;"];
+_query = format ["0:SQLProtocol:SELECT item_type_inventory_limit.Item_Type, item_type_inventory_limit.Item_Limit FROM `inventories`
+    LEFT JOIN inventory_types ON inventory_types.Inventory_Type_Id = inventories.Inventory_Type
+    LEFT JOIN item_type_inventory_limit ON item_type_inventory_limit.Inventory_Type = inventory_types.Inventory_Type_Id
+    WHERE Inventory_Id = %1;", _inventoryId];
 _result = "extDB3" callExtension _query;
 private _inventoryTypeLimit = parseSimpleArray _result;
 if((str (_inventoryTypeLimit select 0)) == "0") then {

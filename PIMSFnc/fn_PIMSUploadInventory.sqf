@@ -84,14 +84,38 @@ for "_i" from 0 to ((count _itemArray) - 1) do { //TODO dont work idk why
 
     private _nonUploadableCount = (_currentItem select 1) - _uploadableCount;
 
+    private _retrievedItemsAndCount = uiNamespace getVariable ["PIMS_retrievedItemsAndCount" + _player, []];
+    for "_j" from 0 to ((count _retrievedItemsAndCount) - 1) do {
+        private _itemAndCount = _retrievedItemsAndCount select _j;
+        private _itemClass = _itemAndCount select 0;
+        private _itemCount = _itemAndCount select 1;
+        if((_currentItem select 0) isEqualTo _itemClass) then {
+            if(_itemCount >= _uploadableCount) then {
+                _retrievedItemsAndCount deleteAt _j;
+                private _tooManyItems = _uploadableCount - _itemCount;
+                _nonUploadableCount = _nonUploadableCount + _tooManyItems;
+                _uploadableCount = _uploadableCount - _tooManyItems;
+            } else {
+                _retrievedItemsAndCount set [_j, [_itemClass, (_itemCount - _uploadableCount)]];
+            };
+            break;
+        };
+    };
+    uiNamespace setVariable ["PIMS_retrievedItemsAndCount" + _player, _retrievedItemsAndCount, true];
+
     if(_uploadableCount >= (_currentItem select 1)) then
     {
         _success2 = [_inventoryId, _currentItem select 0, _currentItem select 1, _currentItem select 2] call PIMS_fnc_PIMSAddItemToDbInventory;
         if(_success2 == false) then {
             _success = false;
         };
+    } else {
+        _success2 = [_inventoryId, _currentItem select 0, _uploadableCount, _currentItem select 2] call PIMS_fnc_PIMSAddItemToDbInventory;
+        if(_success2 == false) then {
+            _success = false;
+        };
+        _nonUploadableCount = _nonUploadableCount + (_currentItem select 1) - _uploadableCount;
     };
-    
     if(_nonUploadableCount > 0) then {
         _currentItem set [1, _nonUploadableCount];
         _illegalItems pushback _currentItem;

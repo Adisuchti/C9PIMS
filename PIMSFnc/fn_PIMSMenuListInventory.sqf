@@ -245,22 +245,13 @@ fn_updateDetailText = {
             <br/><t>class: </t><t color='#ffff00'>%2</t>
             <br/><t>inventory quantity: </t><t color='#ffff00'>%3</t>
             <br/><t>weight: </t><t color='#ffff00'>%4</t>
-            <br/><t>sell price (nominal): </t><t color='#ffff00'>%5</t>
-            <br/><t>purchase price: </t><t color='#ffff00'>%6</t>
-            <br/><t>quantity on market: </t><t color='#ffff00'>%7</t>
-            <br/><br/><t>ammo count: </t><t color='#ffff00'>%8</t>
-            <br/><t>type: </t><t color='#ffff00'>%9</t>
-            <br/><t>current amount of this type: </t><t color='#ffff00'>%10</t>
-            <br/><br/><t>current market saturation (nominal): </t><t color='#ffff00'>%11</t>
-            <br/><t>market saturation extra taxes:</t>
+            <br/><t>purchase price: </t><t color='#ffff00'>%5</t>
+            <br/><t>quantity on market: </t><t color='#ffff00'>%6</t>
+            <br/><br/><t>ammo count: </t><t color='#ffff00'>%7</t>
+            <br/><t>type: </t><t color='#ffff00'>%8</t>
+            <br/><t>current amount of this type: </t><t color='#ffff00'>%9</t>
             <br/>",
-            _displayName, _selectedItemClass, _selectedItemQuantity, _weightKg, _sellPrice, _purchasePrice, _availableQuantityOnMarket, _selectedItemState, _customCategory, _currentAmountOfTypeText, _inventoryMarketSaturation];
-
-            for "_i" from 0 to ((count _marketSaturation) - 1) do {
-                private _currentMarketSaturation = _marketSaturation select _i;
-                private _currentStructuredText = parseText format["<t color='#ffff00' size='0.75'>$%1</t><t size='0.75'> - </t><t color='#00cdff' size='0.75'>%2%3</t><br/>", _currentMarketSaturation select 0, _currentMarketSaturation select 1, "%"];
-                _structuredText = composeText [_structuredText, _currentStructuredText];
-            };
+            _displayName, _selectedItemClass, _selectedItemQuantity, _weightKg, _purchasePrice, _availableQuantityOnMarket, _selectedItemState, _customCategory, _currentAmountOfTypeText];
 
             private _itemTypeLimitText = parseText format["<br/><t>item types with limits:</t><br/>"];
             _structuredText = composeText [_structuredText, _itemTypeLimitText];
@@ -275,30 +266,12 @@ fn_updateDetailText = {
             _itemTextCtrl ctrlSetStructuredText _structuredText;
 
             private _sellButton = (findDisplay 142351) displayCtrl 1600;
-            _sellButton ctrlShow true;
-
-            private _sellButtonText =  parseText format ["sell %1:<br/>%2", _editQuantity, _sellPriceWithSaturation];
-            _sellButton ctrlSetStructuredText _sellButtonText;
-            if(_editQuantity > _selectedItemQuantity) then {
-                _sellButton ctrlEnable false;
-            } else {
-                _sellButton ctrlEnable true;
-            };
+            _sellButton ctrlShow false;
 
             private _buyButton = (findDisplay 142351) displayCtrl 1601;
 
-            private _buyButtonext =  parseText format ["buy %1:<br/>%2", _editQuantity, (_purchasePrice * _editQuantity)];
-            if(_purchasePrice == -1) then {
-                _buyButtonext =  parseText format ["buy %1:<br/>%2", _editQuantity, _purchasePrice];
-            };
-            _buyButton ctrlSetStructuredText _buyButtonext;
-            _buyButton ctrlShow true;
+            _buyButton ctrlShow false;
 
-            if((_purchasePrice == (-1)) or ((_purchasePrice * _editQuantity) > _inventoryMoney) or ((_allowedBuyingQuantity < _editQuantity) && (_itemLimit != (-1)))) then {
-                _buyButton ctrlEnable false;
-            } else {
-                _buyButton ctrlEnable true;
-            };
 
             private _retrieveButton = (findDisplay 142351) displayCtrl 1602;
             _retrieveButton ctrlShow true;
@@ -1064,11 +1037,30 @@ onRetrieveButtonPressed = {
 
         //[] call fn_updateInfo;
 
+        private _retrievedItemsAndCount = uiNamespace getVariable ["PIMS_retrievedItemsAndCount" + _uid, []];
+
         private _selectedItem = _listOfItems select _selectedIndex;
         private _selectedItemClass = _selectedItem select 2;
         private _selectedItemQuantity = _selectedItem select 3;
         private _selectedItemState = _selectedItem select 4;
         private _selectedItemId = _selectedItem select 0;
+
+        private _hasBeenFound = false;
+        
+        for "_i" from 0 to ((count _retrievedItemsAndCount) - 1) do {
+            private _currentItem = _retrievedItemsAndCount select _i;
+
+            if(_selectedItemClass isEqualTo (_currentItem select 0)) then {
+                _retrievedItemsAndCount set [_i, [(_currentItem select 0), (_currentItem select 1) + _editQuantity]];
+                _hasBeenFound = true;
+            };
+        };
+
+        if(not _hasBeenFound) then {
+            _retrievedItemsAndCount pushback [_selectedItemClass, _editQuantity];
+        };
+
+        uiNamespace setVariable ["PIMS_retrievedItemsAndCount" + _uid, _retrievedItemsAndCount];
 
         [_containerId, _selectedItemId, _selectedItemClass, _selectedItemState, _editQuantity] remoteExec ["PIMS_fnc_PIMSRetrieveItemFromDatabase", 2];
         [_selectedIndex, _editQuantity] call fn_removeOneItemFromInventory;
@@ -1241,19 +1233,21 @@ onChangeView = {
     private _viewMode = uiNamespace getVariable ["PIMS_ViewMode", 0];
     private _isAdmin = uiNamespace getVariable ["PIMS_isAdmin", false];
     private _enableVehicles = uiNamespace getVariable ["PIMS_enableVehicles", false];
-    _viewMode = _viewMode + 1;
-    if(!_enableVehicles && (_viewMode == 3)) then {
-        _viewMode = _viewMode + 2;
+
+    if(_viewMode == 0) then {
+        _viewMode = 2;
+    } else {
+        if(_viewMode == 2) then {
+            if(_isAdmin) then {
+                _viewMode = 5;
+            } else {
+                _viewMode = 1;
+            };
+        } else {
+            _viewMode = 1;
+        };
     };
-    if(!_enableVehicles && (_viewMode == 4)) then {
-        _viewMode = _viewMode + 1;
-    };
-    if(!_isAdmin && (_viewMode == 5)) then {
-        _viewMode = 0;
-    };
-    if(_viewMode > 5) then {
-        _viewMode = 0;
-    };
+
     uiNamespace setVariable ["PIMS_ViewMode", _viewMode];
     uiNamespace setVariable ["PIMS_selectedItem", ""];
     uiNamespace setVariable ["PIMS_selectedIndex", 0];

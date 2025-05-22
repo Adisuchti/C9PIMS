@@ -41,10 +41,6 @@ class CfgPatches
 		units[]={
             "PIMS_ModuleInit",
             "PIMS_ModuleAddInventory",
-            "PIMS_ModuleEnableMarket",
-            "PIMS_ModuleDisableMarket",
-            "PIMS_ModuleReduceMarketSaturation",
-            "PIMS_ModuleReportStatus",
             "PIMS_Money_1_Item",
             "PIMS_Money_10_Item",
             "PIMS_Money_50_Item",
@@ -288,10 +284,6 @@ class CfgVehicles
 
     #include "Modules\PIMS_ModuleInit.hpp"
     #include "Modules\PIMS_ModuleAddInventory.hpp"
-    #include "Modules\PIMS_ModuleEnableMarket.hpp"
-    #include "Modules\PIMS_ModuleDisableMarket.hpp"
-    #include "Modules\PIMS_ModuleReduceMarketSaturation.hpp"
-    #include "Modules\PIMS_ModuleReportStatus.hpp"
 };
 
 class CfgWeapons

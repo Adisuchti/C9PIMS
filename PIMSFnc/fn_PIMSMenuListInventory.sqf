@@ -1037,7 +1037,7 @@ onRetrieveButtonPressed = {
 
         //[] call fn_updateInfo;
 
-        private _retrievedItemsAndCount = uiNamespace getVariable ["PIMS_retrievedItemsAndCount" + _uid, []];
+        private _retrievedItemsAndCount = missionNamespace getVariable ["PIMS_retrievedItemsAndCount" + _uid, []];
 
         private _selectedItem = _listOfItems select _selectedIndex;
         private _selectedItemClass = _selectedItem select 2;
@@ -1060,7 +1060,7 @@ onRetrieveButtonPressed = {
             _retrievedItemsAndCount pushback [_selectedItemClass, _editQuantity];
         };
 
-        uiNamespace setVariable ["PIMS_retrievedItemsAndCount" + _uid, _retrievedItemsAndCount];
+        missionNamespace setVariable ["PIMS_retrievedItemsAndCount" + _uid, _retrievedItemsAndCount, true];
 
         [_containerId, _selectedItemId, _selectedItemClass, _selectedItemState, _editQuantity] remoteExec ["PIMS_fnc_PIMSRetrieveItemFromDatabase", 2];
         [_selectedIndex, _editQuantity] call fn_removeOneItemFromInventory;
@@ -1241,10 +1241,10 @@ onChangeView = {
             if(_isAdmin) then {
                 _viewMode = 5;
             } else {
-                _viewMode = 1;
+                _viewMode = 0;
             };
         } else {
-            _viewMode = 1;
+            _viewMode = 0;
         };
     };
 

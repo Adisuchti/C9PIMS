@@ -159,7 +159,10 @@ class CfgFunctions
             };
             class PIMSReduceMarketSaturationOnDatabase {
                 recompile = RECOMPILE_FUNCTIONS;
-            }
+            };
+            class PIMSGetInventoryTypeUploadLimit {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
         };
 	};
 };
@@ -190,7 +193,7 @@ class CfgVehicles
 		author="Adrian Misterov";
 		scope=2;
 		scopeCurator=2;
-		displayName="PIMS Money 1";
+		displayName="Credits 1";
 		vehicleClass="Items";
 		class TransportItems
 		{
@@ -206,7 +209,7 @@ class CfgVehicles
 		author="Adrian Misterov";
 		scope=2;
 		scopeCurator=2;
-		displayName="PIMS Money 10";
+		displayName="Credits 10";
 		vehicleClass="Items";
 		class TransportItems
 		{
@@ -222,7 +225,7 @@ class CfgVehicles
 		author="Adrian Misterov";
 		scope=2;
 		scopeCurator=2;
-		displayName="PIMS Money 50";
+		displayName="Credits 50";
 		vehicleClass="Items";
 		class TransportItems
 		{
@@ -238,7 +241,7 @@ class CfgVehicles
 		author="Adrian Misterov";
 		scope=2;
 		scopeCurator=2;
-		displayName="PIMS Money 100";
+		displayName="Credits 100";
 		vehicleClass="Items";
 		class TransportItems
 		{
@@ -254,7 +257,7 @@ class CfgVehicles
 		author="Adrian Misterov";
 		scope=2;
 		scopeCurator=2;
-		displayName="PIMS Money 500";
+		displayName="Credits 500";
 		vehicleClass="Items";
 		class TransportItems
 		{
@@ -270,7 +273,7 @@ class CfgVehicles
 		author="Adrian Misterov";
 		scope=2;
 		scopeCurator=2;
-		displayName="PIMS Money 1'000";
+		displayName="Credits 1'000";
 		vehicleClass="Items";
 		class TransportItems
 		{
@@ -295,7 +298,7 @@ class CfgWeapons
 	{
 		author="Adrian Misterov";
 		scope=2;
-		displayName="PIMS Money 1";
+		displayName="Credits 1";
 		descriptionShort="moneys";
         //model = "\A3\weapons_f\Ammo\mag_mxrifle.p3d";
         model = "\PIMS\data\pimsMoney";
@@ -309,7 +312,7 @@ class CfgWeapons
 	{
 		author="Adrian Misterov";
 		scope=2;
-		displayName="PIMS Money 10";
+		displayName="Credits 10";
 		descriptionShort="moneys";
         model = "\PIMS\data\pimsMoney";
 		picture = "\PIMS\data\icons\icon_money_10_ca.paa";
@@ -322,7 +325,7 @@ class CfgWeapons
 	{
 		author="Adrian Misterov";
 		scope=2;
-		displayName="PIMS Money 50";
+		displayName="Credits 50";
 		descriptionShort="moneys";
         model = "\PIMS\data\pimsMoney";
 		picture = "\PIMS\data\icons\icon_money_50_ca.paa";
@@ -335,7 +338,7 @@ class CfgWeapons
 	{
 		author="Adrian Misterov";
 		scope=2;
-		displayName="PIMS Money 100";
+		displayName="Credits 100";
 		descriptionShort="moneys";
         model = "\PIMS\data\pimsMoney";
 		picture = "\PIMS\data\icons\icon_money_100_ca.paa";
@@ -348,7 +351,7 @@ class CfgWeapons
 	{
 		author="Adrian Misterov";
 		scope=2;
-		displayName="PIMS Money 500";
+		displayName="Credits 500";
 		descriptionShort="moneys";
 		model = "\PIMS\data\pimsMoney";
 		picture = "\PIMS\data\icons\icon_money_500_ca.paa";
@@ -361,7 +364,7 @@ class CfgWeapons
 	{
 		author="Adrian Misterov";
 		scope=2;
-		displayName="PIMS Money 1'000";
+		displayName="Credits 1'000";
 		descriptionShort="moneys";
 		model = "\PIMS\data\pimsMoney";
 		picture = "\PIMS\data\icons\icon_money_1000_ca.paa";

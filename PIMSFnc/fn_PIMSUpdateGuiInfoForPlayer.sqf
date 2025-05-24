@@ -143,7 +143,7 @@ _inventoryMarketSaturation = _inventoryMarketSaturation select 1;
 _inventoryMarketSaturation = _inventoryMarketSaturation select 0;
 _inventoryMarketSaturation = _inventoryMarketSaturation select 0;
 
-_query = format ["0:SQLProtocol:SELECT item_type_inventory_limit.Item_Type, item_type_inventory_limit.Item_Limit FROM `inventories`
+_query = format ["0:SQLProtocol:SELECT item_type_inventory_limit.Item_Type_Limit_Id, item_type_inventory_limit.Item_Type, item_type_inventory_limit.Item_Limit FROM `inventories`
     LEFT JOIN inventory_types ON inventory_types.Inventory_Type_Id = inventories.Inventory_Type
     LEFT JOIN item_type_inventory_limit ON item_type_inventory_limit.Inventory_Type = inventory_types.Inventory_Type_Id
     WHERE Inventory_Id = %1;", _inventoryId];
@@ -163,6 +163,17 @@ if((str (_customItemTypes select 0)) == "0") then {
    [_string] remoteExec ["systemChat", 0];
 };
 _customItemTypes = _customItemTypes select 1;
+
+_query = format ["0:SQLProtocol:SELECT limit_uploads FROM inventories LEFT JOIN inventory_types ON Inventory_Type_Id = inventories.Inventory_Type WHERE inventories.Inventory_Id = %1;", _inventoryId];
+_result = "extDB3" callExtension _query;
+private _inventoryUploadLimit = parseSimpleArray _result;
+if((str (_inventoryUploadLimit select 0)) isEqualTo "0") then {
+    _string = format ["PIMS ERROR: SQL error. %1", _query];
+   [_string] remoteExec ["systemChat", 0];
+   _inventoryUploadLimit = 0;
+} else {
+    _inventoryUploadLimit = ((_inventoryUploadLimit select 1) select 0) select 0;
+};
 
 //_string = format ["PIMS DEBUG: PIMSUpdateGuiInfoForPlayer: count _inventoryItemList: %1, count _market: %2, _money: %3, count _allInventories %4, count _allContentItems: %5, _isAdmin: %6", count _inventoryItemList, count _market, _money, count _allInventories, count _allContentItems, _isAdmin];
 //[_string] remoteExec ["systemChat", 0];
@@ -186,5 +197,6 @@ missionNamespace setVariable ["PIMSMarketSaturation" + _uid, _marketSaturation, 
 missionNamespace setVariable ["PIMSInventoryMarketSaturation" + _uid, _inventoryMarketSaturation, true];
 missionNamespace setVariable ["PIMSInventoryTypeLimit" + _uid, _inventoryTypeLimit, true];
 missionNamespace setVariable ["PIMSCustomItemTypes" + _uid, _customItemTypes, true];
+missionNamespace setVariable ["PIMSInventoryUploadLimit" + _uid, _inventoryUploadLimit, true];
 
 missionNamespace setVariable ["PIMSDone" + _uid, true, true];

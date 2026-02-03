@@ -95,6 +95,6 @@ _container lockInventory FALSE;
 
 missionNamespace setVariable [_lockVar, false, true];
 
-["PIMS DEBUG: Upload complete."] remoteExec ["systemChat", 0];
+["PIMS DEBUG: Upload complete."] remoteExec ["systemChat", _player];
 
 true

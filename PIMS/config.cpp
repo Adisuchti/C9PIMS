@@ -3,6 +3,7 @@
 #include "\a3\3DEN\UI\macroexecs.inc"
 
 #define RECOMPILE_FUNCTIONS 0
+#define PIMS_VERSION "2.0.0"
 
 #define GUI_GRID_X    (0)
 #define GUI_GRID_Y    (0)
@@ -58,7 +59,7 @@ class CfgPatches
         };
         author = "Adrian Misterov";
         name = "Persistent Inventory Management System v2";
-        version = "2.0";
+        version = PIMS_VERSION;
 	};
 };
 
@@ -117,6 +118,12 @@ class CfgFunctions
                 recompile = RECOMPILE_FUNCTIONS;
             };
             class PIMSRetrieveAllItems {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class PIMSCheckVersion {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class PIMSReportVersion {
                 recompile = RECOMPILE_FUNCTIONS;
             };
         };

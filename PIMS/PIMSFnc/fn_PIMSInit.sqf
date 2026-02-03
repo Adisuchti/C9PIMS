@@ -55,10 +55,14 @@ if (_result != "OK") then {
 					if (getPlayerUID _x == _uid) exitWith {
 						PIMS_PlayerUIDMap set [_uid, _x];
 						_found = true;
+						diag_log format ["PIMS INFO: added player %1 to UID hashmap", _uid];
 					};
 				} forEach allPlayers;
 				_found
 			};
+			
+			// Request version check from client
+			[_uid] remoteExec ["PIMS_fnc_PIMSReportVersion", _owner];
 			
 			// Find all AddInventory modules and set up permissions
 			private _addInventoryModules = allMissionObjects "Logic" select {

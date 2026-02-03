@@ -77,14 +77,10 @@ PIMS is an Arma 3 mod that provides **persistent storage containers** connected 
 ### Server Setup
 
 1. **Install the Addon (PBO)**
-   - Copy `PIMS.pbo` to your server's `@PIMS/addons/` folder
-   - Add `@PIMS` to your server's `-mod=` parameter
+install the mod as you would any other, through the steam workshop.
 
-2. **Install the Extension (DLL)**
-   - Copy `PIMS-Ext_x64.dll` to your Arma 3 root directory (same folder as `arma3server_x64.exe`)
-
-3. **Configure Database Connection**
-   - Create `pims_config.json` in the Arma 3 root directory (same folder as the DLL and server executable):
+2. **Configure Database Connection**
+   - Create `pims_config.json` in the Arma 3 root directory (same folder as the server executable):
    ```json
    {
      "database": {
@@ -97,12 +93,12 @@ PIMS is an Arma 3 mod that provides **persistent storage containers** connected 
    }
    ```
 
-4. **Set Up Database**
+3. **Set Up Database**
    - Create the database and required tables (see Database Schema section)
    - Add player permissions to the `permissions` table
    - Optionally add admins to the `admins` table
 
-5. **Client Setup**
+4. **Client Setup**
    - Clients need the PIMS addon (`@PIMS`) but NOT the DLL or config file
 
 ### Mission Setup (Eden Editor)
@@ -240,6 +236,7 @@ For detailed technical documentation, see:
 - [PIMS_FUNCTIONS.md](PIMS_FUNCTIONS.md) - SQF function reference
 - [PIMS_REMAINING_ISSUES.md](PIMS_REMAINING_ISSUES.md) - Known issues and optimization notes
 
+disclaimer: all of these files are mainly AI generated.
 ---
 
 ## Dependencies

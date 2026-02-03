@@ -1,0 +1,97 @@
+https://github.com/Adisuchti/C9PIMS
+
+[h1]PIMS[/h1]
+"Persistent Inventory Management System - PIMS" is an attempt to offer persistent inventory Units a easy tool to manage the inventories and money of their players.
+This is done by storing the inventories of the players on a mySQL database.
+If anyone ever wants to use this mod for their server or unit, reach out to me, i am willing to help.
+
+[h2]Key Features[/h2]
+[list]
+[*] [b]Persistent Storage[/b] - Items stored in PIMS containers are saved to a database and persist across server restarts
+[*] [b]Permission System[/b] - Control which players can access which inventories via database permissions
+[*] [b]Money System[/b] - Physical money items that convert to digital balance when deposited, withdraw as physical items
+[*] [b]Transaction Logging[/b] - All item deposits and withdrawals are logged to the database
+[*] [b]High Performance[/b] - Native C# extension handles database operations (10-100x faster than pure SQF)
+[/list]
+
+[h1]REQUIREMENTS[/h1]
+[list]
+[*] Dedicated server
+[*] MySQL or MariaDB server
+[*] ACE 3
+[*] CBA_A3
+[*] .NET 8.0 Runtime (x64) on the server
+[/list]
+
+[h1]Setup[/h1]
+
+[h3]1. Install the Mod[/h3]
+Subscribe to this mod. Clients only need the addon, the DLL and config are server-side only.
+
+[h3]2. Configure Database Connection[/h3]
+Create [b]pims_config.json[/b] in the Arma 3 root directory (same folder as arma3server.exe):
+[code]
+{
+  "database": {
+    "server": "localhost",
+    "database": "pims_db",
+    "user": "pims_user",
+    "password": "your_secure_password",
+    "port": 3306
+  }
+}
+[/code]
+
+[h3]3. Set Up Database[/h3]
+Create the database and required tables using the SQL queries provided in the GitHub repository or the included [b]database_setup.txt[/b] file.
+
+[h3]4. Add Players and Inventories[/h3]
+Create inventories:
+[code]INSERT INTO inventories (inventory_id, inventory_name, inventory_money) VALUES (1, 'Team Alpha Storage', 0);[/code]
+
+Grant player access (use their Steam64 ID):
+[code]INSERT INTO permissions (Inventory_Id, Player_Id) VALUES (1, '76500111122233344');[/code]
+
+
+[h3]5. Mission Editor Setup[/h3]
+In the Eden Editor you will find 2 modules under [b]Modules → PIMS[/b]:
+[list]
+[*] [b]PIMS Init[/b] - Place exactly one per mission (required)
+[*] [b]PIMS Add Inventory[/b] - Place for each storage location, set the Inventory ID, and sync to the container object
+[/list]
+
+[h1]Money System[/h1]
+PIMS includes a currency system with physical money items:
+[list]
+[*] PIMS_Money_1 (1 Credit)
+[*] PIMS_Money_10 (10 Credits)
+[*] PIMS_Money_50 (50 Credits)
+[*] PIMS_Money_100 (100 Credits)
+[*] PIMS_Money_500 (500 Credits)
+[*] PIMS_Money_1000 (1000 Credits)
+[/list]
+[b]Upload[/b] physical money → Converts to digital balance
+[b]Withdraw[/b] from balance → Spawns physical money items in the container
+
+[h1]Player Usage[/h1]
+Players interact with PIMS containers via the action menu:
+
+[h3]Open Menu[/h3]
+Opens the inventory GUI where players can view stored items, retrieve items from the database, and manage their money balance.
+
+[h3]Upload Inventory[/h3]
+All items in the container will be removed and stored in the database. Money items are converted to balance.
+
+[h1]Logging & Debugging[/h1]
+The extension produces two log files in the Arma 3 root directory:
+[list]
+[*] [b]PIMS_logs.txt[/b] - General logs (commands, responses, debug info)
+[*] [b]PIMS_errors.txt[/b] - Error logs (database errors, exceptions)
+[/list]
+
+[h1]Troubleshooting[/h1]
+[list]
+[*] [b]"Database not initialized"[/b] - Check pims_config.json exists and has correct credentials
+[*] [b]Version mismatch warning[/b] - Ensure client and server have the same mod version
+[*] [b]No actions on container[/b] - Verify the PIMS Add Inventory module is synced to the object
+[/list]

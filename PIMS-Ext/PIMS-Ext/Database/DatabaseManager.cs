@@ -355,6 +355,10 @@ namespace PIMSExt.Database
                                         "VALUES (@inventoryId, @itemClass, @properties, @quantity) " +
                                         "ON DUPLICATE KEY UPDATE `Item_Quantity` = `Item_Quantity` + @quantity";
                     
+                    // Prepare the log command for individual item logging
+                    string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`) " +
+                                     "VALUES (@itemClass, @quantity, @inventoryId, 0)";
+                    
                     // Process all items
                     foreach (var (itemClass, properties, quantity) in items)
                     {
@@ -385,6 +389,14 @@ namespace PIMSExt.Database
                             upsertCommand.Parameters.AddWithValue("@properties", properties);
                             upsertCommand.Parameters.AddWithValue("@quantity", quantity);
                             upsertCommand.ExecuteNonQuery();
+                            
+                            // Log each item individually
+                            using var logCommand = new MySqlCommand(logQuery, connection, transaction);
+                            logCommand.Parameters.AddWithValue("@itemClass", itemClass);
+                            logCommand.Parameters.AddWithValue("@quantity", quantity);
+                            logCommand.Parameters.AddWithValue("@inventoryId", inventoryId);
+                            logCommand.ExecuteNonQuery();
+                            
                             successCount++;
                         }
                     }
@@ -407,17 +419,6 @@ namespace PIMSExt.Database
                         logMoneyCommand.ExecuteNonQuery();
                         
                         ArmaEntry.WriteToLog($"Batch added {totalMoneyAdded} credits to inventory {inventoryId}", LogLevel.Info);
-                    }
-
-                    // Log item additions (batch log entry)
-                    if (successCount > 0)
-                    {
-                        string batchLogQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`) " +
-                                          "VALUES ('BATCH_UPLOAD', @count, @inventoryId, 0)";
-                        using var batchLogCommand = new MySqlCommand(batchLogQuery, connection, transaction);
-                        batchLogCommand.Parameters.AddWithValue("@count", successCount);
-                        batchLogCommand.Parameters.AddWithValue("@inventoryId", inventoryId);
-                        batchLogCommand.ExecuteNonQuery();
                     }
 
                     transaction.Commit();

@@ -1,0 +1,308 @@
+-- ============================================================================
+-- PIMS - Persistent Inventory Management System
+-- Database Setup Queries
+-- ============================================================================
+-- This file contains all SQL queries needed to set up PIMS for your server.
+-- Execute these queries in order on your MySQL/MariaDB server.
+-- ============================================================================
+
+-- ============================================================================
+-- STEP 1: CREATE DATABASE
+-- ============================================================================
+
+CREATE DATABASE IF NOT EXISTS pims_db
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_general_ci;
+
+USE pims_db;
+
+
+-- ============================================================================
+-- STEP 2: CREATE CORE TABLES
+-- ============================================================================
+
+-- Main inventory definitions
+CREATE TABLE IF NOT EXISTS inventories (
+    inventory_id INT PRIMARY KEY,
+    inventory_name VARCHAR(255) NOT NULL,
+    inventory_money DOUBLE DEFAULT 0
+);
+
+-- Items stored in inventories
+CREATE TABLE IF NOT EXISTS content_items (
+    Content_Item_Id INT PRIMARY KEY AUTO_INCREMENT,
+    Inventory_Id INT NOT NULL,
+    Item_Class VARCHAR(255) NOT NULL,
+    Item_Properties TEXT,
+    Item_Quantity INT NOT NULL DEFAULT 1,
+    FOREIGN KEY (Inventory_Id) REFERENCES inventories(inventory_id) ON DELETE CASCADE
+);
+
+-- Player access permissions
+CREATE TABLE IF NOT EXISTS permissions (
+    Permission_Id INT PRIMARY KEY AUTO_INCREMENT,
+    Inventory_Id INT NOT NULL,
+    Player_Id VARCHAR(50) NOT NULL,
+    FOREIGN KEY (Inventory_Id) REFERENCES inventories(inventory_id) ON DELETE CASCADE
+);
+
+-- Admin users (can access all inventories)
+CREATE TABLE IF NOT EXISTS admins (
+    AdminId INT PRIMARY KEY AUTO_INCREMENT,
+    PlayerId VARCHAR(50) NOT NULL UNIQUE
+);
+
+-- Transaction logs
+CREATE TABLE IF NOT EXISTS logs (
+    Log_Id INT PRIMARY KEY AUTO_INCREMENT,
+    Transaction_Item VARCHAR(255),
+    Transaction_Quantity INT,
+    Transaction_Inventory_Id INT,
+    isMarketActivity BOOLEAN DEFAULT FALSE,
+    Transaction_Time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ============================================================================
+-- STEP 3: CREATE INDEXES FOR PERFORMANCE
+-- ============================================================================
+
+-- Required for atomic upsert operations (prevents duplicate items)
+ALTER TABLE content_items 
+ADD UNIQUE INDEX idx_inventory_item_props (Inventory_Id, Item_Class, Item_Properties(255));
+
+-- Speed up permission checks
+CREATE INDEX idx_permissions_lookup ON permissions (Inventory_Id, Player_Id);
+
+-- Speed up admin checks
+CREATE INDEX idx_admin_player ON admins (PlayerId);
+
+-- Speed up log queries
+CREATE INDEX idx_logs_inventory ON logs (Transaction_Inventory_Id);
+
+
+-- ============================================================================
+-- STEP 4: OPTIONAL SUPPORTING TABLES (for item sorting in GUI)
+-- ============================================================================
+-- These tables are optional but enable sorted item display in the GUI.
+-- If not present, items will display in default database order.
+
+-- Item type definitions
+CREATE TABLE IF NOT EXISTS item_types (
+    Item_Type_Id INT PRIMARY KEY AUTO_INCREMENT,
+    item_classification VARCHAR(50) NOT NULL
+);
+
+-- Item sorting order
+CREATE TABLE IF NOT EXISTS item_sorting (
+    Item_Sorting_Id INT PRIMARY KEY AUTO_INCREMENT,
+    Item_Sorting_Type VARCHAR(50) NOT NULL,
+    Item_Sorting_Number INT NOT NULL
+);
+
+-- Item metadata (links Arma classnames to types)
+CREATE TABLE IF NOT EXISTS items (
+    Item_Id INT PRIMARY KEY AUTO_INCREMENT,
+    item_class VARCHAR(255) NOT NULL UNIQUE,
+    Item_Type INT,
+    FOREIGN KEY (Item_Type) REFERENCES item_types(Item_Type_Id)
+);
+
+-- Default sorting order (optional data)
+INSERT INTO item_sorting (Item_Sorting_Type, Item_Sorting_Number) VALUES
+('Weapon', 1),
+('Magazine', 2),
+('Item', 3),
+('Backpack', 4),
+('Uniform', 5),
+('Vest', 6),
+('Headgear', 7),
+('Glasses', 8),
+('Other', 99);
+
+
+-- ============================================================================
+-- ADMINISTRATION QUERIES
+-- ============================================================================
+-- Use these queries to manage your PIMS installation.
+
+-- ----------------------------------------------------------------------------
+-- CREATE A NEW INVENTORY
+-- ----------------------------------------------------------------------------
+-- Replace values as needed:
+--   inventory_id: Unique number for this inventory
+--   inventory_name: Display name shown to players
+--   inventory_money: Starting balance (usually 0)
+
+INSERT INTO inventories (inventory_id, inventory_name, inventory_money) 
+VALUES (1, 'Team Alpha Storage', 0);
+
+-- Example: Multiple inventories
+-- INSERT INTO inventories (inventory_id, inventory_name, inventory_money) VALUES
+-- (1, 'Team Alpha Storage', 0),
+-- (2, 'Team Bravo Storage', 0),
+-- (3, 'Command HQ Armory', 5000);
+
+
+-- ----------------------------------------------------------------------------
+-- GRANT PLAYER ACCESS TO AN INVENTORY
+-- ----------------------------------------------------------------------------
+-- Replace values:
+--   Inventory_Id: The inventory_id from the inventories table
+--   Player_Id: The player's Steam64 ID (e.g., 76561198012345678)
+
+INSERT INTO permissions (Inventory_Id, Player_Id) 
+VALUES (1, '76561198012345678');
+
+-- Example: Grant one player access to multiple inventories
+-- INSERT INTO permissions (Inventory_Id, Player_Id) VALUES
+-- (1, '76561198012345678'),
+-- (2, '76561198012345678');
+
+-- Example: Grant multiple players access to one inventory
+-- INSERT INTO permissions (Inventory_Id, Player_Id) VALUES
+-- (1, '76561198012345678'),
+-- (1, '76561198087654321'),
+-- (1, '76561198011111111');
+
+
+-- ----------------------------------------------------------------------------
+-- ADD AN ADMIN
+-- ----------------------------------------------------------------------------
+-- Admins can access ALL inventories regardless of permissions.
+-- Replace PlayerId with the admin's Steam64 ID.
+
+INSERT INTO admins (PlayerId) 
+VALUES ('76561198012345678');
+
+
+-- ----------------------------------------------------------------------------
+-- REMOVE PLAYER ACCESS
+-- ----------------------------------------------------------------------------
+
+DELETE FROM permissions 
+WHERE Inventory_Id = 1 AND Player_Id = '76561198012345678';
+
+
+-- ----------------------------------------------------------------------------
+-- REMOVE AN ADMIN
+-- ----------------------------------------------------------------------------
+
+DELETE FROM admins 
+WHERE PlayerId = '76561198012345678';
+
+
+-- ----------------------------------------------------------------------------
+-- DELETE AN INVENTORY (and all its contents)
+-- ----------------------------------------------------------------------------
+-- WARNING: This will permanently delete all items in the inventory!
+
+DELETE FROM inventories 
+WHERE inventory_id = 1;
+
+
+-- ----------------------------------------------------------------------------
+-- VIEW ALL INVENTORIES
+-- ----------------------------------------------------------------------------
+
+SELECT * FROM inventories;
+
+
+-- ----------------------------------------------------------------------------
+-- VIEW ALL PERMISSIONS
+-- ----------------------------------------------------------------------------
+
+SELECT p.*, i.inventory_name 
+FROM permissions p
+LEFT JOIN inventories i ON p.Inventory_Id = i.inventory_id;
+
+
+-- ----------------------------------------------------------------------------
+-- VIEW ALL ADMINS
+-- ----------------------------------------------------------------------------
+
+SELECT * FROM admins;
+
+
+-- ----------------------------------------------------------------------------
+-- VIEW ITEMS IN A SPECIFIC INVENTORY
+-- ----------------------------------------------------------------------------
+
+SELECT * FROM content_items 
+WHERE Inventory_Id = 1;
+
+
+-- ----------------------------------------------------------------------------
+-- VIEW TRANSACTION LOGS FOR AN INVENTORY
+-- ----------------------------------------------------------------------------
+
+SELECT * FROM logs 
+WHERE Transaction_Inventory_Id = 1
+ORDER BY Transaction_Time DESC
+LIMIT 100;
+
+
+-- ----------------------------------------------------------------------------
+-- ADD MONEY TO AN INVENTORY BALANCE
+-- ----------------------------------------------------------------------------
+
+UPDATE inventories 
+SET inventory_money = inventory_money + 1000 
+WHERE inventory_id = 1;
+
+
+-- ----------------------------------------------------------------------------
+-- SET INVENTORY MONEY TO SPECIFIC AMOUNT
+-- ----------------------------------------------------------------------------
+
+UPDATE inventories 
+SET inventory_money = 5000 
+WHERE inventory_id = 1;
+
+
+-- ----------------------------------------------------------------------------
+-- CLEAR ALL ITEMS FROM AN INVENTORY (keep the inventory)
+-- ----------------------------------------------------------------------------
+
+DELETE FROM content_items 
+WHERE Inventory_Id = 1;
+
+
+-- ----------------------------------------------------------------------------
+-- FIND WHICH INVENTORIES A PLAYER HAS ACCESS TO
+-- ----------------------------------------------------------------------------
+
+SELECT i.* 
+FROM inventories i
+INNER JOIN permissions p ON i.inventory_id = p.Inventory_Id
+WHERE p.Player_Id = '76561198012345678';
+
+
+-- ----------------------------------------------------------------------------
+-- COUNT ITEMS IN ALL INVENTORIES
+-- ----------------------------------------------------------------------------
+
+SELECT i.inventory_id, i.inventory_name, 
+       COUNT(c.Content_Item_Id) as item_count,
+       SUM(c.Item_Quantity) as total_quantity
+FROM inventories i
+LEFT JOIN content_items c ON i.inventory_id = c.Inventory_Id
+GROUP BY i.inventory_id, i.inventory_name;
+
+
+-- ============================================================================
+-- NOTES
+-- ============================================================================
+-- 
+-- Steam64 ID: You can find a player's Steam64 ID by:
+--   1. Going to their Steam profile
+--   2. Using steamid.io to convert their profile URL
+--   3. Looking in Arma 3 server logs (shows as playerUID)
+--
+-- Inventory IDs: These must match the IDs set in the PIMS Add Inventory 
+--   modules in the Eden Editor.
+--
+-- Money System: Physical money items (PIMS_Money_1, PIMS_Money_10, etc.)
+--   are automatically converted to the inventory_money balance when uploaded.
+--
+-- ============================================================================

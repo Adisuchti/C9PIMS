@@ -299,6 +299,58 @@ VALUES (@itemClass, @quantity, @inventoryId, 0)
 
 ---
 
+### additems
+
+**Purpose:** Batch add multiple items to an inventory in a single transaction  
+**Format:** `"PIMS-Ext" callExtension "additems|{inventoryId}|{itemArrayJson}"`  
+**Returns:** `"OK|{count}"` where count is number of items processed, or `"Error: {message}"`
+
+**Item Array Format (JSON):**
+```
+[["itemClass","properties",quantity],["itemClass2","properties2",quantity2],...]
+```
+
+**Example Call:**
+```sqf
+_result = "PIMS-Ext" callExtension format["additems|%1|%2", _inventoryId, _itemArrayJson];
+```
+
+**Behavior:**
+1. Parses JSON array of items
+2. Wraps all operations in a single database transaction
+3. For each item:
+   - Money items (`PIMS_Money_X`) → Adds to `Inventory_Money` balance
+   - Regular items → Uses upsert logic (insert or update quantity)
+   - Logs each item individually to the logs table
+4. Commits transaction on success, rolls back on any failure
+5. Invalidates inventory cache
+
+**Atomicity:** All items succeed or all fail - no partial updates.
+
+**Money Handling (cumulative):**
+```sql
+UPDATE inventories SET Inventory_Money = Inventory_Money + @totalMoneyAmount 
+WHERE Inventory_Id = @inventoryId
+```
+
+**Regular Items - Upsert Logic:**
+Same as `additem` - checks for existing item with matching class/properties, updates quantity if exists, inserts if new.
+
+**Individual Item Logging:**
+Each non-money item is logged separately for complete transaction history:
+```sql
+INSERT INTO logs (Transaction_Item, Transaction_Quantity, Transaction_Inventory_Id, isMarketActivity) 
+VALUES (@itemClass, @quantity, @inventoryId, 0)
+```
+
+**Money Logging (if any money added):**
+```sql
+INSERT INTO logs (Transaction_Item, Transaction_Quantity, Transaction_Inventory_Id, isMarketActivity) 
+VALUES ('MONEY', @totalMoneyAmount, @inventoryId, 0)
+```
+
+---
+
 ### removeitem
 
 **Purpose:** Remove item from inventory  

@@ -129,7 +129,9 @@ if ((_removeResult select [0, 2]) == "OK") then {
 	};
 };
 
+// Unlock container - use both local and remoteExec to ensure all clients see it
 _container lockInventory false;
+[_container, false] remoteExec ["lockInventory", 0];
 
 // Upload inventory to refresh extension cache
 [_inventoryId] call PIMS_fnc_PIMSUploadInventoryToExtension;

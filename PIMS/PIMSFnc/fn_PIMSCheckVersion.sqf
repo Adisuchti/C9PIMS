@@ -12,8 +12,8 @@ params [["_playerUid", ""], ["_clientVersion", ""]];
 
 if (!isServer) exitWith {};
 
-// Get server version from config
-private _serverVersion = getText (configFile >> "CfgPatches" >> "PIMS_patches" >> "version");
+// Get server version from config - read versionStr (not version, which Arma binarizes as a number)
+private _serverVersion = getText (configFile >> "CfgPatches" >> "PIMS_patches" >> "versionStr");
 
 if (_serverVersion == "") then {
 	_serverVersion = "UNKNOWN";

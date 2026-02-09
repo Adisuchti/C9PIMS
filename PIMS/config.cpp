@@ -3,7 +3,7 @@
 #include "\a3\3DEN\UI\macroexecs.inc"
 
 #define RECOMPILE_FUNCTIONS 0
-#define PIMS_VERSION "2.0.0"
+#define PIMS_VERSION "2.0.4"
 
 #define GUI_GRID_X    (0)
 #define GUI_GRID_Y    (0)
@@ -35,6 +35,7 @@ class CfgPatches
 		units[]={
             "PIMS_ModuleInit",
             "PIMS_ModuleAddInventory",
+            "PIMS_ModuleZeusPlaceInventory",
             "PIMS_Money_1_Item",
             "PIMS_Money_10_Item",
             "PIMS_Money_50_Item",
@@ -59,7 +60,7 @@ class CfgPatches
         };
         author = "Adrian Misterov";
         name = "Persistent Inventory Management System v2";
-        version = PIMS_VERSION;
+        versionStr = PIMS_VERSION;
 	};
 };
 
@@ -124,6 +125,18 @@ class CfgFunctions
                 recompile = RECOMPILE_FUNCTIONS;
             };
             class PIMSReportVersion {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class PIMSZeusPlaceInventory {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class PIMSZeusSelectInventoryDialog {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class PIMSZeusSpawnBox {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class ConfirmZeusInventorySelection {
                 recompile = RECOMPILE_FUNCTIONS;
             };
         };
@@ -252,6 +265,7 @@ class CfgVehicles
 	// Modules
 	#include "Modules\ModuleInit.hpp"
 	#include "Modules\ModuleAddInventory.hpp"
+	#include "Modules\ModuleZeusPlaceInventory.hpp"
 
 	// Storage Container
 	class TKE_Crate1RBlue;
@@ -614,6 +628,82 @@ class PIMSMenuDialog {
         };
 	};
 };
+
+////////////////////////////////////////////////////////
+// ZEUS INVENTORY SELECTION DIALOG
+////////////////////////////////////////////////////////
+
+class PIMSZeusInventorySelectionDialog {
+    idd = 142352;
+    movingEnable = 1;
+    enableSimulation = 1;
+    
+    class ControlsBackground
+    {
+        class Background: RscText
+        {
+            idc = -1;
+            x = 0.29375 * safezoneW + safezoneX;
+            y = 0.28 * safezoneH + safezoneY;
+            w = 0.4125 * safezoneW;
+            h = 0.44 * safezoneH;
+            colorBackground[] = {0.1, 0.1, 0.1, 0.95};
+        };
+        
+        class TitleBar: RscText
+        {
+            idc = -1;
+            text = "Select PIMS Inventory";
+            x = 0.29375 * safezoneW + safezoneX;
+            y = 0.258 * safezoneH + safezoneY;
+            w = 0.4125 * safezoneW;
+            h = 0.022 * safezoneH;
+            colorBackground[] = {0.2, 0.4, 0.6, 1};
+            sizeEx = 0.04;
+        };
+    };
+    
+    class Controls
+    {
+        class InventoryListBox: RscListbox
+        {
+            idc = 1500;
+            x = 0.304063 * safezoneW + safezoneX;
+            y = 0.302 * safezoneH + safezoneY;
+            w = 0.391875 * safezoneW;
+            h = 0.33 * safezoneH;
+            sizeEx = 0.035;
+        };
+        
+        class ConfirmButton: RscButton
+        {
+            idc = 1600;
+            text = "Place Box";
+            x = 0.43625 * safezoneW + safezoneX;
+            y = 0.654 * safezoneH + safezoneY;
+            w = 0.12375 * safezoneW;
+            h = 0.044 * safezoneH;
+            colorBackground[] = {0.2, 0.6, 0.2, 1};
+            colorBackgroundActive[] = {0.3, 0.7, 0.3, 1};
+            onButtonClick = "[] call PIMS_fnc_ConfirmZeusInventorySelection;";
+        };
+        
+        class CancelButton: RscButton
+        {
+            idc = 1601;
+            text = "Cancel";
+            x = 0.57125 * safezoneW + safezoneX;
+            y = 0.654 * safezoneH + safezoneY;
+            w = 0.12375 * safezoneW;
+            h = 0.044 * safezoneH;
+            colorBackground[] = {0.6, 0.2, 0.2, 1};
+            colorBackgroundActive[] = {0.7, 0.3, 0.3, 1};
+            onButtonClick = "private _logic = uiNamespace getVariable ['PIMS_Zeus_LogicObject', objNull]; if (!isNull _logic) then {[_logic] remoteExec ['deleteVehicle', 2]}; closeDialog 0;";
+        };
+    };
+};
+
 ////////////////////////////////////////////////////////
 // GUI EDITOR OUTPUT END
 ////////////////////////////////////////////////////////
+

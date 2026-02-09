@@ -1,6 +1,15 @@
 /*
- * Populate inventory list in GUI from database via extension
- * Handles item selection and retrieval
+ * fn_PIMSMenuListInventory.sqf
+ *
+ * Client-side GUI controller for the PIMS inventory dialog.
+ * Initializes all dialog controls, defines event handler functions for item
+ * selection, retrieval, money withdrawal, and view switching, then starts
+ * an auto-refresh loop that polls the server every 3 seconds.
+ *
+ * Called by: PIMS_fnc_PIMSOpenMenu (spawned)
+ * Execution: Client only
+ * Parameters: _containerNetId (String), _inventoryId (Number), _isAdmin (Boolean)
+ * Returns: true
  */
 
 params ["_containerNetId", "_inventoryId", "_isAdmin"];
@@ -9,18 +18,22 @@ disableSerialization;
 
 private _playerUid = getPlayerUID player;
 
-// Store global variables in uiNamespace
+// #region Session State
+// Store dialog session state in uiNamespace so all handlers can access it
 uiNamespace setVariable ["PIMS_containerNetId", _containerNetId];
 uiNamespace setVariable ["PIMS_inventoryId", _inventoryId];
 uiNamespace setVariable ["PIMS_isAdmin", _isAdmin];
 uiNamespace setVariable ["PIMS_selectedIndex", 0];
 uiNamespace setVariable ["PIMS_quantity", 1];
 uiNamespace setVariable ["PIMS_Uid", _playerUid];
-uiNamespace setVariable ["PIMS_ViewMode", 0]; // 0 = inventory, 2 = bank
+uiNamespace setVariable ["PIMS_ViewMode", 0]; // 0 = Inventory, 2 = Bank
 uiNamespace setVariable ["PIMS_MoneyTypes", [["PIMS_Money_1", 1], ["PIMS_Money_10", 10], ["PIMS_Money_50", 50], ["PIMS_Money_100", 100], ["PIMS_Money_500", 500], ["PIMS_Money_1000", 1000]]];
 uiNamespace setVariable ["PIMS_isUpdating", false];
 missionNamespace setVariable ["PIMS_closeMenu_" + _playerUid, false];
+// #endregion
 
+// #region Dialog Controls
+// Look up the dialog and grab references to key controls
 private _display = findDisplay 142351;
 if (isNull _display) exitWith {
 	systemChat "PIMS ERROR: Dialog not found";
@@ -34,15 +47,15 @@ private _infoText = _infoGroup controlsGroupCtrl 1000;
 private _quantityEdit = _display displayCtrl 1800;
 private _titleCtrl = _display displayCtrl 1001;
 
-// Initialize button visibility
+// Set initial button states
 private _topButton = _display displayCtrl 1700;
 _topButton ctrlSetText "Inventory";
 
-// Hide old buy button (not used)
+// Hide unused buy button
 private _buyButton = _display displayCtrl 1601;
 _buyButton ctrlShow false;
 
-// Show all functional buttons
+// Show retrieve, retrieve-all, and retrieve-everything buttons
 private _retrieveButton = _display displayCtrl 1602;
 _retrieveButton ctrlShow true;
 
@@ -52,11 +65,13 @@ _retrieveAllButton ctrlShow true;
 private _retrieveAllItemsButton = _display displayCtrl 1600;
 _retrieveAllItemsButton ctrlShow true;
 
-// Show quantity editor
+// Show and initialize the quantity input field
 _quantityEdit ctrlShow true;
 _quantityEdit ctrlSetText "1";
+// #endregion
 
-// Helper function to get config path
+// #region Helper Functions
+// Resolve an item class to its config path (CfgWeapons/Magazines/Vehicles/Glasses) and mass
 fn_getConfigPathAndWeight = {
 	params ["_itemClass"];
 	
@@ -94,12 +109,19 @@ fn_getConfigPathAndWeight = {
 	[_cfg, _parentPath, _mass]
 };
 uiNamespace setVariable ["PIMS_fnc_getConfigPathAndWeight", fn_getConfigPathAndWeight];
+// #endregion
 
-// Define update function
+// #region Update Function
+// fn_updateInventoryView — Master refresh routine for the dialog listbox.
+// Requests the latest inventory data from the server via remoteExec, waits for the
+// response, then performs an incremental diff against the current listbox entries to
+// minimise flicker.  Handles both Inventory view (item list) and Bank view (money
+// denominations), adjusts button visibility per view mode, and restores the previous
+// selection after the refresh to prevent unwanted auto-scrolling.
 fn_updateInventoryView = {
 	//systemChat "PIMS DEBUG: fn_updateInventoryView called";
 	
-	// Prevent concurrent updates
+	// Guard — skip if another refresh is already running to avoid overlapping server calls
 	private _isUpdating = uiNamespace getVariable ["PIMS_isUpdating", false];
 	if (_isUpdating) exitWith {
 		//systemChat "PIMS DEBUG: Update already in progress, exiting";
@@ -119,29 +141,30 @@ fn_updateInventoryView = {
 	private _playerUid = getPlayerUID player;
 	private _viewMode = uiNamespace getVariable ["PIMS_ViewMode", 0];
 	
-	// Request updated items from server
+	// Fire a server-side request for the latest inventory contents and money balance
 	missionNamespace setVariable [format ["PIMS_InventoryDataReady_%1", _playerUid], false];
 	[_inventoryId, _playerUid] remoteExec ["PIMS_fnc_PIMSGetInventoryData", 2];
 	
-	// Wait for server response (100ms polling interval for reduced CPU usage)
+	// Block until the server writes the response into missionNamespace (100 ms poll)
 	waitUntil {
 		sleep 0.1;
 		missionNamespace getVariable [format ["PIMS_InventoryDataReady_%1", _playerUid], false]
 	};
 	
+	// Read the server's response — item array, money balance, and display name
 	private _items = missionNamespace getVariable [format ["PIMS_InventoryItems_%1", _playerUid], []];
 	private _inventoryMoney = missionNamespace getVariable [format ["PIMS_InventoryMoney_%1", _playerUid], 0];
 	private _inventoryName = missionNamespace getVariable [format ["PIMS_InventoryName_%1", _playerUid], "Unknown"];
 	
-	// Update title
+	// Set the dialog title to the inventory's display name
 	private _titleCtrl = _display displayCtrl 1001;
 	_titleCtrl ctrlSetStructuredText parseText format ["<t align='center' size='1.5' color='#ff00ff66'>%1</t>", _inventoryName];
 	
-	// Get cached items for comparison
+	// Retrieve the previous listbox snapshot and view mode for incremental diff
 	private _cachedItems = uiNamespace getVariable ["PIMS_cachedListBoxItems", []];
 	private _cachedViewMode = uiNamespace getVariable ["PIMS_cachedViewMode", -1];
 	
-	// Check if view mode changed - if so, clear listbox
+	// If the user switched views since last refresh, wipe the listbox and cache
 	private _viewModeChanged = (_cachedViewMode != _viewMode);
 	if (_viewModeChanged) then {
 		lbClear _listBox;
@@ -149,20 +172,20 @@ fn_updateInventoryView = {
 		uiNamespace setVariable ["PIMS_cachedViewMode", _viewMode];
 	};
 	
-	// Store updated items
+	// Cache the latest data so event handlers can read it without another server call
 	uiNamespace setVariable ["PIMS_currentItems", _items];
 	uiNamespace setVariable ["PIMS_inventoryMoney", _inventoryMoney];
 	
 	//systemChat format ["PIMS DEBUG: Item count: %1, Money: %2", count _items, _inventoryMoney];
 	
-	// Remember selected index
+	// Snapshot the current selection so it can be restored after the diff
 	private _selectedIndex = lbCurSel _listBox;
 	private _selectedData = "";
 	if (_selectedIndex >= 0) then {
 		_selectedData = _listBox lbData _selectedIndex;
 	};
 	
-	// Build new listbox data based on view mode
+	// Assemble the target listbox entries depending on the active view mode
 	private _newListBoxItems = [];
 
 	private _back1 = _display displayCtrl 16020;
@@ -170,7 +193,7 @@ fn_updateInventoryView = {
 	private _back3 = _display displayCtrl 16000;
 	
 	if (_viewMode == 0) then {
-		// Inventory view - show all items
+		// Inventory view — build one row per stored item with name, quantity, and icon
 		{
 			_x params ["_contentItemId", "_itemClass", "_properties", "_quantity"];
 			
@@ -196,7 +219,7 @@ fn_updateInventoryView = {
 		_back3 ctrlShow true;
 	} else {
 		if (_viewMode == 2) then {
-			// Bank view - show only money items
+			// Bank view — list each money denomination with its icon
 			private _moneyTypes = uiNamespace getVariable ["PIMS_MoneyTypes", []];
 			{
 				_x params ["_moneyClass", "_moneyValue"];
@@ -220,11 +243,11 @@ fn_updateInventoryView = {
 		_back3 ctrlShow false;
 	};
 	
-	// Compare and update listbox incrementally
+	// --- Incremental listbox diff: update, add, or remove rows as needed ---
 	private _currentSize = lbSize _listBox;
 	private _newSize = count _newListBoxItems;
 	
-	// Update existing entries
+	// Pass 1 — overwrite rows that already exist but whose content changed
 	private _minSize = _currentSize min _newSize;
 	for [{private _i = 0}, {_i < _minSize}, {_i = _i + 1}] do {
 		private _newItem = _newListBoxItems select _i;
@@ -244,7 +267,7 @@ fn_updateInventoryView = {
 		};
 	};
 	
-	// Add new entries if list grew
+	// Pass 2 — append new rows if the target list is longer than the current listbox
 	if (_newSize > _currentSize) then {
 		for [{private _i = _currentSize}, {_i < _newSize}, {_i = _i + 1}] do {
 			private _newItem = _newListBoxItems select _i;
@@ -259,18 +282,18 @@ fn_updateInventoryView = {
 		};
 	};
 	
-	// Remove old entries if list shrunk
+	// Pass 3 — trim excess rows from the bottom if the target list is shorter
 	if (_currentSize > _newSize) then {
 		for [{private _i = _currentSize - 1}, {_i >= _newSize}, {_i = _i - 1}] do {
 			lbDelete [_listBox, _i];
 		};
 	};
 	
-	// Store new cached items
+	// Persist the new snapshot for the next diff cycle
 	uiNamespace setVariable ["PIMS_cachedListBoxItems", _newListBoxItems];
 	
-	// Restore selection by data (more reliable than index)
-	// IMPORTANT: Only call lbSetCurSel if selection actually changed to avoid auto-scrolling
+	// Restore the previous selection by matching lbData (index-independent).
+	// Only call lbSetCurSel when the index actually differs to prevent auto-scrolling.
 	private _currentSelection = lbCurSel _listBox;
 	
 	if (_selectedData != "") then {
@@ -301,7 +324,7 @@ fn_updateInventoryView = {
 		};
 	};
 	
-	// Update top button text
+	// Relabel the top toggle button to reflect the current view mode
 	private _topButton = _display displayCtrl 1700;
 	if (_viewMode == 0) then {
 		_topButton ctrlSetText "Inventory";
@@ -311,7 +334,7 @@ fn_updateInventoryView = {
 		};
 	};
 	
-	// Update button visibility and labels based on view mode
+	// Show or hide action buttons depending on view mode (bank hides bulk retrieve)
 	private _retrieveButton = _display displayCtrl 1602;
 	private _retrieveAllButton = _display displayCtrl 1603;
 	private _retrieveAllItemsButton = _display displayCtrl 1600;
@@ -331,12 +354,17 @@ fn_updateInventoryView = {
 		};
 	};
 	
-	// Release update lock
+	// Release the concurrent-update guard so the next refresh cycle can proceed
 	uiNamespace setVariable ["PIMS_isUpdating", false];
 };
 uiNamespace setVariable ["PIMS_fnc_updateInventoryView", fn_updateInventoryView];
+// #endregion
 
-// Define item selection handler
+// #region Selection Handler
+// onListboxSelectionChanged — Populates the right-hand detail panel when the user
+// clicks a listbox row.  In Inventory view it shows the item image, class name,
+// type, quantity, per-unit and total weight, state/properties, and description.
+// In Bank view it shows the denomination value, current balance, and a brief note.
 onListboxSelectionChanged = {
 	params ["_control", "_selectedIndex"];
 	
@@ -351,7 +379,7 @@ onListboxSelectionChanged = {
 	private _infoCtrl = _infoGroup controlsGroupCtrl 1000;
 	
 	if (_viewMode == 0) then {
-		// Inventory view
+		// Inventory view — show full item details or a summary if nothing is selected
 		if (_selectedIndex < 0 || _selectedIndex >= count _items) exitWith {
 			_infoCtrl ctrlSetStructuredText parseText format [
 				"<t align='center' size='1.3'>Inventory</t><br/><br/>" +
@@ -376,16 +404,16 @@ onListboxSelectionChanged = {
 		private _descriptionLong = getText (_cfg >> "description");
 		private _picture = getText (_cfg >> "picture");
 		
-		// Calculate total weight
+		// Derive total stack weight from per-unit mass × quantity
 		private _totalWeight = _mass * _quantity;
 		
-		// Build detail text
+		// Compose the structured-text detail string (title, image, stats, description)
 		private _detailText = format [
 			"<t align='center' size='1.3'>%1</t><br/><br/>",
 			_displayName
 		];
 		
-		// Add image if available
+		// Insert the item picture if one is defined in config
 		if (_picture != "") then {
 			_detailText = _detailText + format [
 				"<img image='%1' size='3'/><br/><br/>",
@@ -419,7 +447,7 @@ onListboxSelectionChanged = {
 		
 	} else {
 		if (_viewMode == 2) then {
-			// Bank view
+			// Bank view — show denomination details or a summary if nothing is selected
 			private _moneyTypes = uiNamespace getVariable ["PIMS_MoneyTypes", []];
 			
 			if (_selectedIndex < 0 || _selectedIndex >= count _moneyTypes) exitWith {
@@ -462,8 +490,14 @@ onListboxSelectionChanged = {
 		};
 	};
 };
+// #endregion
 
-// Define retrieve button handler
+// #region Retrieve Handlers
+// onRetrieveButtonPressed — Handles the main "Retrieve" button.
+// In Inventory mode, takes the user-specified quantity of the selected item from the
+// database and spawns it into the linked container.  In Bank mode, converts the
+// selected denomination × quantity into physical money items, deducting the balance.
+// Both paths use spawn + waitUntil so the UI stays responsive during the server call.
 onRetrieveButtonPressed = {
 	params ["_control", "_button", "_xPos", "_yPos", "_shift", "_ctrl", "_alt"];
 	
@@ -481,7 +515,7 @@ onRetrieveButtonPressed = {
 	private _playerUid = getPlayerUID player;
 	
 	if (_viewMode == 0) then {
-		// Inventory mode - retrieve items (spawn to allow waitUntil)
+		// Inventory mode — retrieve the requested quantity of the selected item
 		[_containerNetId, _playerUid, _selectedIndex, _quantityEdit] spawn {
 			params ["_containerNetId", "_playerUid", "_selectedIndex", "_quantityEdit"];
 			
@@ -499,16 +533,16 @@ onRetrieveButtonPressed = {
 			
 			private _inventoryId = uiNamespace getVariable ["PIMS_inventoryId", 0];
 			
-			// Reset flags before calling server
+			// Clear completion flags before issuing the server request
 			missionNamespace setVariable [format ["PIMS_retrieveDone_%1", _playerUid], false];
 			missionNamespace setVariable [format ["PIMS_retrieveSuccess_%1", _playerUid], false];
 			
-			// Retrieve item from database (SERVER-SIDE)
+			// Ask the server to remove the items from the DB and add them to the container
 			[_containerNetId, _inventoryId, _contentItemId, _itemClass, _properties, _retrieveQty, _playerUid] remoteExec ["PIMS_fnc_PIMSRetrieveItemFromDatabase", 2];
 			
 			systemChat format ["PIMS INFO: Retrieving %1x %2...", _retrieveQty, _itemClass];
 			
-			// Wait for retrieval to complete
+			// Block until the server signals completion
 			waitUntil {
 				sleep 0.1;
 				missionNamespace getVariable [format ["PIMS_retrieveDone_%1", _playerUid], false]
@@ -518,7 +552,7 @@ onRetrieveButtonPressed = {
 			if (_success) then {
 				systemChat "PIMS INFO: Item retrieved successfully";
 				
-				// Refresh the list
+				// Immediately refresh the listbox to reflect the change
 				call fn_updateInventoryView;
 			} else {
 				systemChat "PIMS ERROR: Failed to retrieve item";
@@ -526,7 +560,7 @@ onRetrieveButtonPressed = {
 		};
 	} else {
 		if (_viewMode == 2) then {
-			// Bank mode - withdraw money (spawn to allow waitUntil)
+			// Bank mode — withdraw the selected denomination as physical money items
 			[_containerNetId, _playerUid, _selectedIndex, _quantityEdit] spawn {
 				params ["_containerNetId", "_playerUid", "_selectedIndex", "_quantityEdit"];
 				
@@ -548,16 +582,16 @@ onRetrieveButtonPressed = {
 				
 				private _inventoryId = uiNamespace getVariable ["PIMS_inventoryId", 0];
 				
-				// Reset flags before calling server
+				// Clear completion flags before issuing the server request
 				missionNamespace setVariable [format ["PIMS_withdrawDone_%1", _playerUid], false];
 				missionNamespace setVariable [format ["PIMS_withdrawSuccess_%1", _playerUid], false];
 				
-				// Withdraw money from database (SERVER-SIDE)
+				// Ask the server to deduct the balance and spawn money items into the container
 				[_containerNetId, _inventoryId, _moneyClass, _withdrawQty, _playerUid] remoteExec ["PIMS_fnc_PIMSWithdrawMoney", 2];
 				
 				systemChat format ["PIMS INFO: Withdrawing %1 credits (%2x %3)...", _totalAmount, _withdrawQty, _moneyClass];
 				
-				// Wait for withdrawal to complete
+				// Block until the server signals completion
 				waitUntil {
 					sleep 0.1;
 					missionNamespace getVariable [format ["PIMS_withdrawDone_%1", _playerUid], false]
@@ -565,7 +599,7 @@ onRetrieveButtonPressed = {
 				
 				private _success = missionNamespace getVariable [format ["PIMS_withdrawSuccess_%1", _playerUid], false];
 				if (_success) then {
-					// Refresh the view
+					// Immediately refresh the listbox to reflect the updated balance
 					call fn_updateInventoryView;
 				} else {
 					systemChat "PIMS ERROR: Failed to withdraw money";
@@ -575,7 +609,8 @@ onRetrieveButtonPressed = {
 	};
 };
 
-// Define retrieve all button handler (retrieve all of selected item)
+// onRetrieveAllButtonPressed — Retrieves the full quantity of the selected item in
+// one server call, bypassing the quantity input field.
 onRetrieveAllButtonPressed = {
 	params ["_control", "_button", "_xPos", "_yPos", "_shift", "_ctrl", "_alt"];
 	
@@ -587,7 +622,7 @@ onRetrieveAllButtonPressed = {
 		systemChat "PIMS WARNING: No item selected";
 	};
 	
-	// Spawn to allow waitUntil
+	// Spawn so waitUntil can suspend without blocking the UI
 	[_selectedIndex] spawn {
 		params ["_selectedIndex"];
 		
@@ -599,16 +634,16 @@ onRetrieveAllButtonPressed = {
 		private _playerUid = getPlayerUID player;
 		private _inventoryId = uiNamespace getVariable ["PIMS_inventoryId", 0];
 		
-		// Reset flags before calling server
+		// Clear completion flags before issuing the server request
 		missionNamespace setVariable [format ["PIMS_retrieveDone_%1", _playerUid], false];
 		missionNamespace setVariable [format ["PIMS_retrieveSuccess_%1", _playerUid], false];
 		
-		// Retrieve all of this item from database (SERVER-SIDE)
+		// Ask the server to move the full stack from the DB into the container
 		[_containerNetId, _inventoryId, _contentItemId, _itemClass, _properties, _quantity, _playerUid] remoteExec ["PIMS_fnc_PIMSRetrieveItemFromDatabase", 2];
 		
 		systemChat format ["PIMS INFO: Retrieving all %1x %2...", _quantity, _itemClass];
 		
-		// Wait for retrieval to complete
+		// Block until the server signals completion
 		waitUntil {
 			sleep 0.1;
 			missionNamespace getVariable [format ["PIMS_retrieveDone_%1", _playerUid], false]
@@ -618,7 +653,7 @@ onRetrieveAllButtonPressed = {
 		if (_success) then {
 			systemChat "PIMS INFO: All items retrieved successfully";
 			
-			// Refresh the list
+			// Immediately refresh the listbox to reflect the change
 			call fn_updateInventoryView;
 		} else {
 			systemChat "PIMS ERROR: Failed to retrieve items";
@@ -626,25 +661,25 @@ onRetrieveAllButtonPressed = {
 	};
 };
 
-// Define retrieve all items total handler (retrieve everything in inventory)
+// onRetrieveAllItemsTotalButtonPressed — Empties the entire inventory in one
+// server call, moving every stored item into the linked container.
 onRetrieveAllItemsTotalButtonPressed = {
 	params ["_control", "_button", "_xPos", "_yPos", "_shift", "_ctrl", "_alt"];
 	
-	// Spawn to allow waitUntil
+	// Spawn so waitUntil can suspend without blocking the UI
 	[] spawn {
 		private _containerNetId = uiNamespace getVariable ["PIMS_containerNetId", ""];
 		private _playerUid = getPlayerUID player;
 		private _inventoryId = uiNamespace getVariable ["PIMS_inventoryId", 0];
 		
-		// Reset flags before calling server
+		// Clear completion flags before issuing the server request
 		missionNamespace setVariable [format ["PIMS_retrieveAllDone_%1", _playerUid], false];
 		missionNamespace setVariable [format ["PIMS_retrieveAllSuccess_%1", _playerUid], false];
 		
-		// Call server-side function to retrieve all items at once
-		// Server will handle the empty inventory check
+		// Ask the server to move every item from the DB into the container
 		[_containerNetId, _inventoryId, _playerUid] remoteExec ["PIMS_fnc_PIMSRetrieveAllItems", 2];
 		
-		// Wait for completion
+		// Block until the server signals completion
 		waitUntil {
 			sleep 0.1;
 			missionNamespace getVariable [format ["PIMS_retrieveAllDone_%1", _playerUid], false]
@@ -652,29 +687,32 @@ onRetrieveAllItemsTotalButtonPressed = {
 		
 		private _success = missionNamespace getVariable [format ["PIMS_retrieveAllSuccess_%1", _playerUid], false];
 		
-		// Refresh the UI
+		// Refresh the listbox regardless of outcome so the UI stays in sync
 		call fn_updateInventoryView;
 	};
 };
+// #endregion
 
-// Define view change handler
+// #region View & UI Handlers
+// onChangeView — Toggles ViewMode between Inventory (0) and Bank (2), then
+// spawns a full refresh so the listbox and detail panel update immediately.
 onChangeView = {
 	params ["_control", "_button", "_xPos", "_yPos", "_shift", "_ctrl", "_alt"];
 	
 	private _viewMode = uiNamespace getVariable ["PIMS_ViewMode", 0];
 	
-	// Toggle between inventory (0) and bank (2)
+	// Flip the stored view mode between the two states
 	if (_viewMode == 0) then {
 		uiNamespace setVariable ["PIMS_ViewMode", 2];
 	} else {
 		uiNamespace setVariable ["PIMS_ViewMode", 0];
 	};
 	
-	// Refresh the view (spawn to allow suspending commands)
+	// Refresh the listbox and re-trigger selection to update the detail panel
 	[] spawn {
 		call fn_updateInventoryView;
 		
-		// Trigger selection changed to update detail text
+		// Re-fire the selection handler so the detail panel matches the new view
 		private _display = findDisplay 142351;
 		private _listBox = _display displayCtrl 1500;
 		private _selectedIndex = lbCurSel _listBox;
@@ -686,16 +724,17 @@ onChangeView = {
 	};
 };
 
-// Define refresh button handler
+// onUpdateInfo — Manual refresh button.  Spawns a full inventory refresh and
+// re-triggers the selection handler so the detail panel stays current.
 onUpdateInfo = {
 	params ["_control", "_button", "_xPos", "_yPos", "_shift", "_ctrl", "_alt"];
 	
 	//systemChat "PIMS INFO: Refreshing inventory...";
-	// Spawn to allow suspending commands (waitUntil)
+	// Spawn so waitUntil can suspend without blocking the UI
 	[] spawn {
 		call fn_updateInventoryView;
 		
-		// Trigger selection changed to update detail text
+		// Re-fire the selection handler so the detail panel matches the refreshed data
 		private _display = findDisplay 142351;
 		private _listBox = _display displayCtrl 1500;
 		private _selectedIndex = lbCurSel _listBox;
@@ -707,14 +746,16 @@ onUpdateInfo = {
 	};
 };
 
-// Define close button handler (ESC key)
+// onCloseButtonPressed — Closes the dialog and sets the per-player close flag so
+// the auto-refresh loop knows to terminate.
 onCloseButtonPressed = {
 	closeDialog 142351;
 	private _playerUid = getPlayerUID player;
 	missionNamespace setVariable [format ["PIMS_closeMenu_%1", _playerUid], true];
 };
 
-// Define quantity change handler
+// onQuantityChanged — Validates the quantity input field, clamping it to a
+// minimum of 1, and stores the parsed value in uiNamespace for other handlers.
 onQuantityChanged = {
 	params ["_control", "_newText"];
 	
@@ -727,12 +768,15 @@ onQuantityChanged = {
 	uiNamespace setVariable ["PIMS_quantity", _parsedNumber];
 };
 
-// Placeholder handlers for unused functions
+// Stub handlers for unused dialog events (buy, load, unload)
 onBuyButtonPressed = {};
 onLoad = {};
 onUnload = {};
+// #endregion
 
-// Store all handlers in uiNamespace so GUI can access them
+// #region Handler Registration
+// Publish every handler into uiNamespace so the dialog's config.cpp event entries
+// (via ctrlAddEventHandler / onLBSelChanged / buttonClick) can locate them at runtime.
 uiNamespace setVariable ["PIMS_fnc_onRetrieveButtonPressed", onRetrieveButtonPressed];
 uiNamespace setVariable ["PIMS_fnc_onRetrieveAllButtonPressed", onRetrieveAllButtonPressed];
 uiNamespace setVariable ["PIMS_fnc_onRetrieveAllItemsTotalButtonPressed", onRetrieveAllItemsTotalButtonPressed];
@@ -745,12 +789,15 @@ uiNamespace setVariable ["PIMS_fnc_onLoad", onLoad];
 uiNamespace setVariable ["PIMS_fnc_onUnload", onUnload];
 
 //systemChat "PIMS DEBUG: All functions stored in uiNamespace";
+// #endregion
 
-// Initial population
+// #region Initialization & Auto-Refresh
+// Perform the first data fetch and populate the listbox, then select the first row
+// so the detail panel is populated on open.
 //systemChat "PIMS DEBUG: Calling fn_updateInventoryView for first time...";
 call fn_updateInventoryView;
 
-// Trigger initial selection
+// Select the first row (or signal empty) to seed the detail panel
 private _listBox = _display displayCtrl 1500;
 if ((lbSize _listBox) > 0) then {
 	_listBox lbSetCurSel 0;
@@ -759,12 +806,14 @@ if ((lbSize _listBox) > 0) then {
 	[_listBox, -1] call onListboxSelectionChanged;
 };
 
-// Auto-refresh GUI every 3 seconds (skips if refresh already in progress)
+// Spawn a background loop that refreshes the listbox every 3 seconds.
+// The loop exits when the dialog is closed or the per-player close flag is set.
+// Skips a cycle if a refresh is already in progress to prevent stacking.
 [] spawn {
 	private _playerUid = getPlayerUID player;
 	
 	while {true} do {
-		// Check if dialog is still open
+		// Exit the loop if the dialog was closed or the close flag was raised
 		private _closeMenu = missionNamespace getVariable [format ["PIMS_closeMenu_%1", _playerUid], false];
 		if (_closeMenu || isNull (findDisplay 142351)) exitWith {
 			missionNamespace setVariable [format ["PIMS_closeMenu_%1", _playerUid], false];
@@ -772,13 +821,14 @@ if ((lbSize _listBox) > 0) then {
 		
 		sleep 3;
 		
-		// Skip refresh if one is already in progress (prevents stacking)
+		// Only refresh if no other update is already running
 		private _isUpdating = uiNamespace getVariable ["PIMS_isUpdating", false];
 		if (!_isUpdating) then {
-			// Refresh the inventory list
+			// Pull the latest inventory data and diff the listbox
 			call fn_updateInventoryView;
 		};
 	};
 };
+// #endregion
 
 true

@@ -11,10 +11,10 @@ params [["_playerUid", ""]];
 
 if (!hasInterface) exitWith {}; // Only run on clients with interface
 
-// Get version from config - this reads the addon's version
-private _clientVersion = getText (configFile >> "CfgPatches" >> "PIMS_patches" >> "version");
+// Get version from config - read versionStr (not version, which Arma binarizes as a number)
+private _clientVersion = getText (configFile >> "CfgPatches" >> "PIMS_patches" >> "versionStr");
 
-// If version not found in config, use fallback
+// If versionStr not found, try version as number fallback
 if (_clientVersion == "") then {
 	_clientVersion = "UNKNOWN";
 };

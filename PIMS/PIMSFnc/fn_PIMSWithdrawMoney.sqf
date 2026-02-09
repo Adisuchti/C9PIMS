@@ -46,6 +46,9 @@ try {
 			[format ["PIMS_withdrawDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
 			[format ["PIMS_withdrawSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
 		};
+		// Ensure container is unlocked even on early exit
+		_container lockInventory false;
+		[_container, false] remoteExec ["lockInventory", 0];
 	};
 	
 	private _totalAmount = _moneyValue * _quantity;
@@ -81,6 +84,8 @@ try {
 	};
 };
 
+// Unlock container - use both local and remoteExec to ensure all clients see it
 _container lockInventory false;
+[_container, false] remoteExec ["lockInventory", 0];
 
 true

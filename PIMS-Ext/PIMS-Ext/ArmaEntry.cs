@@ -133,6 +133,7 @@ namespace PIMSExt
                     "withdrawmoney" => HandleWithdrawMoney(parts),
                     "hasinventorychanged" => HandleHasInventoryChanged(parts),
                     "queuerefresh" => HandleQueueRefresh(parts),
+                    "getallinventories" => HandleGetAllInventories(parts),
                     "ping" => "pong",
                     _ => $"Error: Unknown command '{command}'"
                 };
@@ -272,6 +273,35 @@ namespace PIMSExt
                 _inventoryNameCache[inventoryId] = name;
             }
             return name ?? "Error: Inventory not found";
+        }
+
+        /// <summary>
+        /// Get all inventories from database
+        /// Format: getallinventories (no parameters)
+        /// Returns: SQF array [[id1,"name1"],[id2,"name2"],...] or error
+        /// </summary>
+        private static string HandleGetAllInventories(string[] parts)
+        {
+            if (_dbManager == null)
+                return "Error: Database not initialized";
+
+            var inventories = _dbManager.GetAllInventories();
+            if (inventories == null || inventories.Count == 0)
+                return "[]";
+
+            // Format as SQF array: [[id,"name"],[id,"name"],...]
+            var sb = new StringBuilder("[");
+            for (int i = 0; i < inventories.Count; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append('[');
+                sb.Append(inventories[i].Id);
+                sb.Append(",\"");
+                sb.Append(inventories[i].Name.Replace("\"", "\"\""));
+                sb.Append("\"]");
+            }
+            sb.Append(']');
+            return sb.ToString();
         }
 
         /// <summary>

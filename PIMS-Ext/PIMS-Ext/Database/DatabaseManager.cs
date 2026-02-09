@@ -129,6 +129,35 @@ namespace PIMSExt.Database
         }
 
         /// <summary>
+        /// Get all inventories (id + name) from database
+        /// </summary>
+        public List<(int Id, string Name)> GetAllInventories()
+        {
+            var result = new List<(int Id, string Name)>();
+            try
+            {
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
+
+                string query = "SELECT `inventory_id`, `inventory_name` FROM `inventories` ORDER BY `inventory_id`";
+                using var command = new MySqlCommand(query, connection);
+                using var reader = command.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    int id = reader.GetInt32(0);
+                    string name = reader.GetString(1);
+                    result.Add((id, name));
+                }
+            }
+            catch (Exception ex)
+            {
+                ArmaEntry.WriteToLog($"Database get all inventories error: {ex.Message}\nStack trace: {ex.StackTrace}", LogLevel.Error);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Get inventory money by ID
         /// </summary>
         public double GetInventoryMoney(int inventoryId)

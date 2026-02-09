@@ -35,6 +35,9 @@ if (missionNamespace getVariable [_lockVar, false]) exitWith {
 	if (!isNull _player) then {
 		["PIMS: Upload already in progress for this container"] remoteExec ["systemChat", _player];
 	};
+	// Must unlock container since we already locked it above
+	_container lockInventory false;
+	[_container, false] remoteExec ["lockInventory", 0];
 };
 
 missionNamespace setVariable [_lockVar, true, true];

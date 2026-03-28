@@ -13,9 +13,10 @@ if (isNull _container) exitWith {
 	false
 };
 
-// Lock inventory immediately
+// Lock inventory immediately and record the lock timestamp for stale-lock detection
 _container lockInventory true;
 [_container, true] remoteExec ["lockInventory", 0];
+_container setVariable ["PIMS_OpLockTime", diag_tickTime, true];
 
 // Find player object from UID
 private _player = objNull;
@@ -38,6 +39,7 @@ if (missionNamespace getVariable [_lockVar, false]) exitWith {
 	// Must unlock container since we already locked it above
 	_container lockInventory false;
 	[_container, false] remoteExec ["lockInventory", 0];
+	_container setVariable ["PIMS_OpLockTime", nil, true];
 };
 
 missionNamespace setVariable [_lockVar, true, true];
@@ -93,8 +95,9 @@ try {
 	};
 };
 
-_container lockInventory FALSE;
-[_container, FALSE] remoteExec ["lockInventory", 0];
+_container lockInventory false;
+[_container, false] remoteExec ["lockInventory", 0];
+_container setVariable ["PIMS_OpLockTime", nil, true];
 
 missionNamespace setVariable [_lockVar, false, true];
 

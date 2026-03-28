@@ -56,9 +56,11 @@ if (_result != "OK") then {
 		typeOf _x == "PIMS_ModuleAddInventory"
 	};
 	{
-		private _objects = synchronizedObjects _x select {!isNil "_x"};
+		private _objects = synchronizedObjects _x select {!isNull _x};
 		{
 			_x lockInventory false;
+			[_x, false] remoteExec ["lockInventory", 0];
+			_x setVariable ["PIMS_OpLockTime", nil, true];
 			if (typeOf _x == "PIMS_Box") then {
 				_x allowDamage false;
 				_x setDamage [0, false, objNull, objNull, true];
@@ -97,12 +99,20 @@ if (_result != "OK") then {
 			// Ask the client to report its addon version for mismatch detection
 			[_uid] remoteExec ["PIMS_fnc_PIMSReportVersion", _owner];
 			
+			// Ask the client to report its loaded addons for admin monitoring
+			[_uid] remoteExec ["PIMS_fnc_PIMSReportAddons", _owner];
+			
 			// Query admin status once — reused across all modules for this player
 			private _adminCheck = format ["isadmin|%1", _uid];
 			private _isAdmin = ("PIMS-Ext" callExtension _adminCheck) == "1";
 			
 			// Local name cache to avoid repeated getinventoryname calls for the same ID
 			private _nameCache = createHashMap;
+			
+			// Batch permission query — single DB call replaces N per-module checks
+			private _permQuery = format ["getuserpermissions|%1", _uid];
+			private _permResult = "PIMS-Ext" callExtension _permQuery;
+			private _allowedInventories = parseSimpleArray _permResult;
 			
 			// Collect all editor-placed AddInventory modules
 			private _addInventoryModules = allMissionObjects "Logic" select {
@@ -114,9 +124,8 @@ if (_result != "OK") then {
 				private _inventoryId = _module getVariable ["PIMS_Inventory_Id_Edit", 0];
 				private _objects = synchronizedObjects _module select {!isNil "_x"};
 				
-				// Check if this player has access to this inventory
-				private _permCheck = format ["checkpermission|%1|%2", _inventoryId, _uid];
-				private _hasPermission = ("PIMS-Ext" callExtension _permCheck) == "1";
+				// Check if this player has access (in-memory lookup, no DB call)
+				private _hasPermission = _inventoryId in _allowedInventories;
 				
 				if (_hasPermission) then {
 					// Resolve inventory display name (cached per ID to avoid repeat queries)
@@ -197,9 +206,8 @@ if (_result != "OK") then {
 					
 					if (isNull _box) then {continue};
 					
-					// Check if this player has access to this Zeus-spawned inventory
-					private _permCheck = format ["checkpermission|%1|%2", _inventoryId, _uid];
-					private _hasPermission = ("PIMS-Ext" callExtension _permCheck) == "1";
+					// Check if this player has access (in-memory lookup, no DB call)
+					private _hasPermission = _inventoryId in _allowedInventories;
 					
 					if (_hasPermission) then {
 						// Resolve inventory display name (cached per ID)
@@ -323,12 +331,62 @@ if (_result != "OK") then {
 		// Cache for item class -> displayName lookups (populated lazily)
 		PIMS_MonitorDisplayNameCache = createHashMap;
 		
+		// Build a flat array of ALL synced containers (any type, not just PIMS_Box)
+		// for periodic unlock enforcement. Containers may re-lock due to parent class
+		// defaults reasserting after locality changes or simulation resets.
+		PIMS_AllContainers = [];
+		{
+			private _module = _x;
+			private _objects = synchronizedObjects _module select {!isNull _x};
+			PIMS_AllContainers append _objects;
+		} forEach _addInventoryModules;
+		
 		// Trigger initial background DB refresh so the first PFH tick has cached data
 		{ "PIMS-Ext" callExtension format ["queuerefresh|%1", _x]; } forEach (keys PIMS_MonitorBoxMap);
 		// #endregion
 		
 		// #region Per Frame Handler (runs every 8 seconds in unscheduled environment)
 		[{
+			// #region Periodic Unlock Enforcement
+			// Guard against phantom re-locking caused by parent class defaults, simulation
+			// resets, or locality changes.  Also auto-clears stale operation locks (>30 s).
+			{
+				if (!isNull _x) then {
+					private _opLockTime = _x getVariable ["PIMS_OpLockTime", -1];
+					if (_opLockTime < 0) then {
+						// No operation active — ensure container stays unlocked
+						_x lockInventory false;
+					} else {
+						// Operation marked as active — check for stale lock (>30 seconds)
+						if (diag_tickTime - _opLockTime > 30) then {
+							_x lockInventory false;
+							_x setVariable ["PIMS_OpLockTime", nil, true];
+							diag_log format ["PIMS WARNING: Force-unlocked stale operation lock on %1 (locked for %2s)", _x, diag_tickTime - _opLockTime];
+						};
+					};
+				};
+			} forEach PIMS_AllContainers;
+			
+			// Also enforce unlock on Zeus-spawned boxes
+			if (!isNil "PIMS_ZeusSpawnedBoxes") then {
+				{
+					_x params ["_box", "_inventoryId"];
+					if (!isNull _box) then {
+						private _opLockTime = _box getVariable ["PIMS_OpLockTime", -1];
+						if (_opLockTime < 0) then {
+							_box lockInventory false;
+						} else {
+							if (diag_tickTime - _opLockTime > 30) then {
+								_box lockInventory false;
+								_box setVariable ["PIMS_OpLockTime", nil, true];
+								diag_log format ["PIMS WARNING: Force-unlocked stale operation lock on Zeus box %1", _box];
+							};
+						};
+					};
+				} forEach PIMS_ZeusSpawnedBoxes;
+			};
+			// #endregion
+			
 			// Read HashMaps from globals (PFH args would serialize them to plain arrays)
 			private _inventoryBoxMap = PIMS_MonitorBoxMap;
 			private _inventoryNameCache = PIMS_MonitorNameCache;
@@ -344,6 +402,11 @@ if (_result != "OK") then {
 						if !(_box in _existingBoxes) then {
 							_existingBoxes pushBack _box;
 							_inventoryBoxMap set [_inventoryId, _existingBoxes];
+							
+							// Also track for unlock enforcement
+							if !(_box in PIMS_AllContainers) then {
+								PIMS_AllContainers pushBack _box;
+							};
 							
 							// Cache the display name for this newly tracked inventory ID
 							if (isNil {_inventoryNameCache get _inventoryId}) then {

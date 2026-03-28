@@ -163,9 +163,13 @@ The extension maintains thread-safe in-memory caches using ConcurrentDictionary:
 | State | Variable | Description |
 |-------|----------|-------------|
 | Unlocked | `lockInventory false` | Normal interaction |
-| Locked (Upload) | `lockInventory true` | During upload operation |
-| Locked (Retrieve) | `lockInventory true` | During retrieve operation |
-| Locked (No Permission) | `lockInventory true` | Player lacks access |
+| Locked (Operation) | `lockInventory true` + `PIMS_OpLockTime` set | During upload/retrieve/withdraw |
+| Stale Lock | `PIMS_OpLockTime` > 30 s old | Auto-cleared by periodic enforcement |
+
+**Locking Mechanism:**
+Operations set `PIMS_OpLockTime` on the container (with `diag_tickTime`) when locking, and clear it (`nil`) when unlocking. The monitor PFH enforces unlock every 8 seconds:
+- If `PIMS_OpLockTime` is nil → force `lockInventory false` (catches phantom relocks from parent class defaults, locality changes, or simulation resets)
+- If `PIMS_OpLockTime` > 30 seconds old → force-unlock as stale (catches stuck operations from script errors or player disconnects mid-operation)
 
 ### GUI View Modes
 
@@ -298,8 +302,7 @@ PIMS WARNING: Player JohnDoe has version mismatch! Client: 1.9.0, Server: 2.0.0
 1. **Single-threaded extension**: All database operations are serialized
 2. **Cache invalidation**: Adding/removing items clears entire inventory cache
 3. **No offline mode**: Requires active database connection
-4. **No transaction batching**: Each item upload is a separate DB call
-5. **Monitor refresh rate**: Fixed 20-second interval for PIMS_Box displays
+4. **Monitor refresh rate**: Fixed 8-second interval for PIMS_Box displays
 
 ## Performance Considerations
 

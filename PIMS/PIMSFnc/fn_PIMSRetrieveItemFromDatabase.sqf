@@ -28,6 +28,7 @@ if (isNull _container) exitWith {
 };
 
 _container lockInventory true;
+_container setVariable ["PIMS_OpLockTime", diag_tickTime, true];
 
 private _success = false;
 
@@ -82,6 +83,7 @@ try {
 // Use both local and remoteExec to ensure all clients see the unlock
 _container lockInventory false;
 [_container, false] remoteExec ["lockInventory", 0];
+_container setVariable ["PIMS_OpLockTime", nil, true];
 
 // Upload inventory to refresh extension cache (after unlock to minimize lock duration)
 if (_success) then {

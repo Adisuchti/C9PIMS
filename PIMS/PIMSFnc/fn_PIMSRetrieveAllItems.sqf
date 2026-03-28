@@ -69,6 +69,7 @@ if (!isNull _player) then {
 };
 
 _container lockInventory true;
+_container setVariable ["PIMS_OpLockTime", diag_tickTime, true];
 
 // Build batch array for single extension call: [[contentItemId,quantity,itemClass,properties],...]
 private _batchArray = [];
@@ -132,6 +133,7 @@ if ((_removeResult select [0, 2]) == "OK") then {
 // Unlock container - use both local and remoteExec to ensure all clients see it
 _container lockInventory false;
 [_container, false] remoteExec ["lockInventory", 0];
+_container setVariable ["PIMS_OpLockTime", nil, true];
 
 // Upload inventory to refresh extension cache
 [_inventoryId] call PIMS_fnc_PIMSUploadInventoryToExtension;

@@ -27,6 +27,7 @@ if (isNull _container) exitWith {
 };
 
 _container lockInventory true;
+_container setVariable ["PIMS_OpLockTime", diag_tickTime, true];
 
 try {
 	// Calculate total withdrawal amount
@@ -49,6 +50,7 @@ try {
 		// Ensure container is unlocked even on early exit
 		_container lockInventory false;
 		[_container, false] remoteExec ["lockInventory", 0];
+		_container setVariable ["PIMS_OpLockTime", nil, true];
 	};
 	
 	private _totalAmount = _moneyValue * _quantity;
@@ -87,5 +89,6 @@ try {
 // Unlock container - use both local and remoteExec to ensure all clients see it
 _container lockInventory false;
 [_container, false] remoteExec ["lockInventory", 0];
+_container setVariable ["PIMS_OpLockTime", nil, true];
 
 true

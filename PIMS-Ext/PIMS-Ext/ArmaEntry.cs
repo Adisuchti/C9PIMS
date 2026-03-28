@@ -134,6 +134,8 @@ namespace PIMSExt
                     "hasinventorychanged" => HandleHasInventoryChanged(parts),
                     "queuerefresh" => HandleQueueRefresh(parts),
                     "getallinventories" => HandleGetAllInventories(parts),
+                    "getuserpermissions" => HandleGetUserPermissions(parts),
+                    "saveplayeraddons" => HandleSavePlayerAddons(parts),
                     "ping" => "pong",
                     _ => $"Error: Unknown command '{command}'"
                 };
@@ -242,6 +244,28 @@ namespace PIMSExt
             bool hasPermission = _dbManager.CheckPermission(inventoryId, playerUid);
             _permissionCache[cacheKey] = (hasPermission, DateTime.UtcNow);
             return hasPermission ? "1" : "0";
+        }
+
+        /// <summary>
+        /// Get all inventory IDs a player has permission to access (batch query).
+        /// Format: getuserpermissions|playerUid
+        /// Returns: SQF array string, e.g. "[1,2,5]" or "[]" if none
+        /// </summary>
+        private static string HandleGetUserPermissions(string[] parts)
+        {
+            if (_dbManager == null)
+                return "Error: Database not initialized";
+
+            if (parts.Length < 2)
+                return "Error: getuserpermissions requires 1 parameter: playerUid";
+
+            string playerUid = parts[1];
+            List<int> inventoryIds = _dbManager.GetPlayerPermissions(playerUid);
+
+            if (inventoryIds.Count == 0)
+                return "[]";
+
+            return "[" + string.Join(",", inventoryIds) + "]";
         }
 
         /// <summary>
@@ -871,6 +895,50 @@ namespace PIMSExt
             }
             
             return success ? "OK" : "Error: Failed to withdraw money";
+        }
+
+        #endregion
+
+        #region Addon Monitoring
+
+        /// <summary>
+        /// Save player's loaded addons to database (non-blocking).
+        /// Format: saveplayeraddons|playerUid|mod1,mod2,mod3,...
+        /// Returns: "" immediately, saves in background task
+        /// </summary>
+        private static string HandleSavePlayerAddons(string[] parts)
+        {
+            if (_dbManager == null)
+                return ""; // Return empty, don't block SQF
+
+            if (parts.Length < 3)
+                return ""; // Return empty, don't block SQF
+
+            string playerUid = parts[1];
+            string modsStr = parts[2];
+
+            // Parse comma-separated mod list
+            var mods = modsStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                              .ToList();
+
+            if (mods.Count == 0)
+                return "";
+
+            // Fire and forget — save in background
+            Task.Run(() =>
+            {
+                try
+                {
+                    _dbManager.SavePlayerAddons(playerUid, mods);
+                    WriteToLog($"Saved {mods.Count} addons for player {playerUid}", LogLevel.Info);
+                }
+                catch (Exception ex)
+                {
+                    WriteToLog($"Failed to save addons for player {playerUid}: {ex.Message}", LogLevel.Error);
+                }
+            });
+
+            return ""; // Return immediately, don't block SQF
         }
 
         #endregion

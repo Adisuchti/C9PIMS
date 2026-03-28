@@ -78,6 +78,35 @@ namespace PIMSExt.Database
         }
 
         /// <summary>
+        /// Get all inventory IDs a player has permission to access (batch query).
+        /// Replaces N individual CheckPermission calls with a single query.
+        /// </summary>
+        public List<int> GetPlayerPermissions(string playerUid)
+        {
+            var result = new List<int>();
+            try
+            {
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
+
+                string query = "SELECT `Inventory_Id` FROM `permissions` WHERE `Player_Id` = @playerUid";
+                using var command = new MySqlCommand(query, connection);
+                command.Parameters.AddWithValue("@playerUid", playerUid);
+
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    result.Add(reader.GetInt32(0));
+                }
+            }
+            catch (Exception ex)
+            {
+                ArmaEntry.WriteToLog($"Database get player permissions error: {ex.Message}\nStack trace: {ex.StackTrace}", LogLevel.Error);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Check if player is admin
         /// </summary>
         public bool IsAdmin(string playerUid)
@@ -650,6 +679,56 @@ namespace PIMSExt.Database
                 result.Success = false;
                 result.ErrorMessage = ex.Message;
                 return result;
+            }
+        }
+
+        #endregion
+
+        #region Addon Monitoring
+
+        /// <summary>
+        /// Save a player's loaded addons to the addon_list table.
+        /// Replaces all existing entries for this player (delete + insert in transaction).
+        /// </summary>
+        public void SavePlayerAddons(string playerUid, List<string> mods)
+        {
+            try
+            {
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
+
+                using var transaction = connection.BeginTransaction();
+
+                try
+                {
+                    // Clear old entries for this player
+                    string deleteQuery = "DELETE FROM `addon_list` WHERE `SteamUid` = @uid";
+                    using var deleteCommand = new MySqlCommand(deleteQuery, connection, transaction);
+                    deleteCommand.Parameters.AddWithValue("@uid", playerUid);
+                    deleteCommand.ExecuteNonQuery();
+
+                    // Batch insert new entries
+                    string insertQuery = "INSERT INTO `addon_list` (`SteamUid`, `Mod`) VALUES (@uid, @mod)";
+                    foreach (string mod in mods)
+                    {
+                        using var insertCommand = new MySqlCommand(insertQuery, connection, transaction);
+                        insertCommand.Parameters.AddWithValue("@uid", playerUid);
+                        insertCommand.Parameters.AddWithValue("@mod", mod);
+                        insertCommand.ExecuteNonQuery();
+                    }
+
+                    transaction.Commit();
+                }
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    ArmaEntry.WriteToLog($"Failed to save addons, rolled back: {ex.Message}", LogLevel.Error);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                ArmaEntry.WriteToLog($"Database save player addons error: {ex.Message}\nStack trace: {ex.StackTrace}", LogLevel.Error);
             }
         }
 

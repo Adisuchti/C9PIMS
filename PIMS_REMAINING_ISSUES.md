@@ -7,6 +7,22 @@ This document lists performance bottlenecks that were identified but not yet fix
 
 ## Recently Fixed Issues
 
+### ✅ Phantom Container Re-Locking
+
+**Status:** IMPLEMENTED  
+**Location:** [fn_PIMSInit.sqf](PIMSFnc/fn_PIMSInit.sqf), [fn_PIMSUploadInventory.sqf](PIMSFnc/fn_PIMSUploadInventory.sqf), [fn_PIMSRetrieveItemFromDatabase.sqf](PIMSFnc/fn_PIMSRetrieveItemFromDatabase.sqf), [fn_PIMSRetrieveAllItems.sqf](PIMSFnc/fn_PIMSRetrieveAllItems.sqf), [fn_PIMSWithdrawMoney.sqf](PIMSFnc/fn_PIMSWithdrawMoney.sqf)
+
+**Problem:** PIMS containers would spontaneously re-lock after several minutes, even though no operation was in progress. Players had to upload (empty) content to trigger an unlock. The root cause: `lockInventory false` was only called at init and after operations, so any state reset (locality change, simulation restart, parent class defaults reasserting) would silently re-lock the container with no mechanism to detect or fix it. Additionally, if an operation lock failed to clear (e.g., script error, player disconnect mid-operation), the container stayed permanently locked.
+
+**Solution Implemented:**
+1. All operations (upload, retrieve, retrieveAll, withdraw) now set `PIMS_OpLockTime` (timestamped via `diag_tickTime`) on the container when locking, and clear it (`nil`) when unlocking
+2. The monitor PFH (every 8 s) enforces `lockInventory false` on all tracked containers (`PIMS_AllContainers`) that don't have an active operation
+3. Stale operation locks (>30 seconds) are auto-cleared and force-unlocked with a diag_log warning
+4. Init now also broadcasts the unlock via `remoteExec` and clears any leftover `PIMS_OpLockTime` values
+5. Also fixed `!isNil "_x"` → `!isNull _x` in the init container filter (was not actually filtering null objects)
+
+---
+
 ### ✅ Non-Blocking Database Refresh (Background Tasks)
 
 **Status:** IMPLEMENTED  
@@ -64,6 +80,36 @@ ADD UNIQUE INDEX `idx_inventory_item_props` (`Inventory_Id`, `Item_Class`, `Item
 
 ---
 
+### ✅ N+1 Permission Query on PlayerConnected
+
+**Status:** IMPLEMENTED  
+**Location:** [DatabaseManager.cs](../PIMS-Ext/PIMS-Ext/Database/DatabaseManager.cs), [ArmaEntry.cs](../PIMS-Ext/PIMS-Ext/ArmaEntry.cs), [fn_PIMSInit.sqf](PIMSFnc/fn_PIMSInit.sqf)
+
+**Problem:** When a player connected, the `PlayerConnected` handler iterated every `PIMS_ModuleAddInventory` module and every `PIMS_ZeusSpawnedBoxes` entry, calling `checkpermission|inventoryId|playerUid` on each one. With *M* editor modules + *Z* Zeus boxes, this fired *M + Z* synchronous database queries per player join — a textbook N+1 problem causing lag spikes on servers with many inventories.
+
+**Solution Implemented:**
+1. Added `GetPlayerPermissions(playerUid)` method to `DatabaseManager.cs` — single query: `SELECT Inventory_Id FROM permissions WHERE Player_Id = @playerUid`
+2. Added `getuserpermissions|playerUid` extension command in `ArmaEntry.cs` — returns SQF array string `[1,2,5]`
+3. In `fn_PIMSInit.sqf`, replaced per-loop `checkpermission` calls with a single `getuserpermissions` call before the loops, parsing the result with `parseSimpleArray` and checking `_inventoryId in _allowedInventories` inside the loops
+
+**Performance Improvement:** Reduces M+Z database queries to 1 per player connect.
+
+**Command:**
+- `getuserpermissions|playerUid` - Returns `"[1,2,5]"` or `"[]"`
+
+---
+
+### ✅ Double Query in RemoveItem (Fixed)
+
+**Status:** IMPLEMENTED (was listed as open but code was already fixed)  
+**Location:** [DatabaseManager.cs](../PIMS-Ext/PIMS-Ext/Database/DatabaseManager.cs) - `RemoveItem()`
+
+**Problem:** Originally executed the same query twice (ExecuteScalar then ExecuteReader).
+
+**Solution:** Already uses a single `FOR UPDATE` query with ExecuteReader in the current codebase. Marking as resolved.
+
+---
+
 ## High Priority Issues
 
 ### 1. Complex SQL JOIN with COLLATE
@@ -88,36 +134,9 @@ COLLATE in JOIN conditions prevents index usage and requires full table scans.
 
 ---
 
-### 3. Double Query in RemoveItem
-
-**Severity:** MEDIUM  
-**Location:** [DatabaseManager.cs](../PIMS-Ext/PIMS-Ext/Database/DatabaseManager.cs) - `RemoveItem()`  
-**Impact:** Unnecessary database round-trip
-
-**Problem:**
-```csharp
-object? result = checkCommand.ExecuteScalar();  // First query
-using var reader = checkCommand.ExecuteReader(); // Second query - SAME DATA!
-```
-
-The same query is executed twice: once with ExecuteScalar, once with ExecuteReader.
-
-**Proposed Solution:**
-```csharp
-using var reader = checkCommand.ExecuteReader();
-if (!reader.HasRows) return false;
-reader.Read();
-int currentQuantity = reader.GetInt32(0);
-// ... continue with existing logic
-```
-
-**Estimated Improvement:** ~50% reduction in RemoveItem operation time
-
----
-
 ## Medium Priority Issues
 
-### 4. Config Lookups Per Item
+### 2. Config Lookups Per Item
 
 **Severity:** MEDIUM  
 **Location:** [fn_PIMSMenuListInventory.sqf](PIMSFnc/fn_PIMSMenuListInventory.sqf) - Line ~175  
@@ -138,26 +157,11 @@ if (_displayName == "") then {
 2. Cache display names, pictures, and mass values by item class
 3. Look up from hashmap instead of config
 
-```sqf
-// At mission init
-PIMS_ItemConfigCache = createHashMap;
-
-// In display function
-private _cacheData = PIMS_ItemConfigCache getOrDefault [_itemClass, []];
-if (count _cacheData == 0) then {
-    // Lookup and cache
-    private _displayName = getText (configFile >> "CfgWeapons" >> _itemClass >> "displayName");
-    // ... lookup logic ...
-    PIMS_ItemConfigCache set [_itemClass, [_displayName, _picture, _mass, _parentPath]];
-    _cacheData = PIMS_ItemConfigCache get _itemClass;
-};
-```
-
 **Estimated Improvement:** 5-10x faster GUI population after first load
 
 ---
 
-### 5. GUI Auto-Refresh Interval
+### 3. GUI Auto-Refresh Interval
 
 **Severity:** MEDIUM  
 **Location:** [fn_PIMSMenuListInventory.sqf](PIMSFnc/fn_PIMSMenuListInventory.sqf) - Line ~770  
@@ -179,7 +183,7 @@ call fn_updateInventoryView;
 
 ---
 
-### 6. BIS_fnc_itemType Call Per Selection
+### 4. BIS_fnc_itemType Call Per Selection
 
 **Severity:** LOW-MEDIUM  
 **Location:** [fn_PIMSMenuListInventory.sqf](PIMSFnc/fn_PIMSMenuListInventory.sqf) - Line ~365  
@@ -193,13 +197,13 @@ private _itemType = ([_itemClass] call BIS_fnc_itemType) select 1;
 BIS_fnc_itemType does config lookups internally, called every time an item is selected.
 
 **Proposed Solution:**
-Cache item types in the same config cache hashmap mentioned in Issue #4.
+Cache item types in the same config cache hashmap mentioned in Issue #2.
 
 ---
 
 ## Low Priority Issues
 
-### 7. Logging Overhead
+### 5. Logging Overhead
 
 **Severity:** LOW  
 **Location:** [ArmaEntry.cs](../PIMS-Ext/PIMS-Ext/ArmaEntry.cs) - `WriteToLog()`  
@@ -231,7 +235,7 @@ Every extension call writes to log file twice.
 
 ---
 
-### 8. String Formatting in Loops
+### 6. String Formatting in Loops
 
 **Severity:** LOW  
 **Location:** Multiple files  
@@ -257,29 +261,32 @@ With connection pooling enabled (default in MySqlConnector), the question of whe
 3. Network round-trips still occur per operation
 4. Transaction commit overhead per operation
 
-Even with pooling, N+1 operations will be slower than batch operations. The fix for Issue #1 (batch uploads) would still provide significant improvement.
+Even with pooling, N+1 operations will be slower than batch operations.
 
 ---
 
 ## Quick Reference
 
-| Issue | Severity | Est. Improvement | Complexity |
-|-------|----------|------------------|------------|
-| N+1 Extension Calls | HIGH | 10-50x | Medium |
-| COLLATE in JOINs | MEDIUM-HIGH | 2-10x | Low |
-| Double Query | MEDIUM | ~50% | Low |
-| Config Lookups | MEDIUM | 5-10x | Medium |
-| Refresh Interval | MEDIUM | 40-70% | Low |
-| BIS_fnc_itemType | LOW-MEDIUM | Minor | Low |
-| Logging Overhead | LOW | Minor | Low |
-| String Formatting | LOW | Minor | Low |
+| Issue | Severity | Status | Est. Improvement |
+|-------|----------|--------|------------------|
+| N+1 Permission Queries | HIGH | ✅ Fixed | M+Z queries → 1 |
+| N+1 Extension Calls (upload) | HIGH | ✅ Fixed | 10-50x |
+| Double Query (RemoveItem) | MEDIUM | ✅ Fixed | ~50% |
+| Non-Blocking DB Refresh | HIGH | ✅ Fixed | Eliminates SQF blocking |
+| Phantom Container Re-Lock | HIGH | ✅ Fixed | Eliminates phantom locks |
+| Batch Upload | HIGH | ✅ Fixed | 10-50x uploads |
+| Race Conditions | HIGH | ✅ Fixed | Prevents data corruption |
+| COLLATE in JOINs | MEDIUM-HIGH | Open | 2-10x |
+| Config Lookups | MEDIUM | Open | 5-10x |
+| Refresh Interval | MEDIUM | Open | 40-70% |
+| BIS_fnc_itemType | LOW-MEDIUM | Open | Minor |
+| Logging Overhead | LOW | Open | Minor |
+| String Formatting | LOW | Open | Minor |
 
 ---
 
 ## Implementation Priority
 
-1. **Fix Double Query** - Easy win, minimal code change
-2. **Fix COLLATE** - Requires database migration
-3. **Implement Batch Uploads** - Biggest impact, moderate effort
-4. **Add Config Cache** - Client-side improvement
-5. **Add Log Level Config** - Minor improvement
+1. **Fix COLLATE** - Requires database migration
+2. **Add Config Cache** - Client-side improvement
+3. **Add Log Level Config** - Minor improvement

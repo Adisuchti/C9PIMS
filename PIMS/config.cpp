@@ -3,7 +3,7 @@
 #include "\a3\3DEN\UI\macroexecs.inc"
 
 #define RECOMPILE_FUNCTIONS 0
-#define PIMS_VERSION "2.0.4"
+#define PIMS_VERSION "2.0.5"
 
 #define GUI_GRID_X    (0)
 #define GUI_GRID_Y    (0)
@@ -137,6 +137,12 @@ class CfgFunctions
                 recompile = RECOMPILE_FUNCTIONS;
             };
             class ConfirmZeusInventorySelection {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class PIMSReportAddons {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class PIMSSaveAddons {
                 recompile = RECOMPILE_FUNCTIONS;
             };
         };

@@ -24,6 +24,8 @@ All PIMS functions use the prefix `PIMS_fnc_` and are defined in `config.cpp` un
 | `PIMS_fnc_PIMSCheckBoxMoney` | Any | Calculate money in container |
 | `PIMS_fnc_PIMSReportVersion` | Client | Report client version to server |
 | `PIMS_fnc_PIMSCheckVersion` | Server | Verify client/server version match |
+| `PIMS_fnc_PIMSReportAddons` | Client | Report loaded addons to server |
+| `PIMS_fnc_PIMSSaveAddons` | Server | Save addon list to database (async) |
 
 ---
 
@@ -50,10 +52,11 @@ Initialize the PIMS system, connect to database, set up player connection handle
 2. If successful:
    - Initializes `PIMS_PlayerUIDMap` hashmap for O(1) player lookups
    - Defines `PIMS_fnc_getPlayerByUID` helper function
-   - Adds `PlayerConnected` event handler (updates hashmap, sets up actions)
+   - Unlocks all PIMS containers (via `lockInventory false` + `remoteExec`) and clears any stale `PIMS_OpLockTime` variables
+   - Adds `PlayerConnected` event handler (batch permission query, updates hashmap, sets up actions)
    - Adds `PlayerDisconnected` event handler (cleans up hashmap)
-   - Caches AddInventory modules once at startup (performance optimization)
-   - Starts monitor display update loop (20s interval) with change detection
+   - Builds `PIMS_AllContainers` array for periodic unlock enforcement
+   - Starts monitor display + unlock enforcement PFH (8 s interval) with change detection
 3. If failed:
    - Logs error and displays to all clients
 
@@ -62,8 +65,15 @@ Initialize the PIMS system, connect to database, set up player connection handle
 |-------|----------|---------|
 | Global | `PIMS_PlayerUIDMap` | Hashmap: UID → player object |
 | Global | `PIMS_fnc_getPlayerByUID` | Helper function for O(1) lookups |
+| Global | `PIMS_AllContainers` | Flat array of all synced containers for periodic unlock enforcement |
 | Module | `PIMS_Inventory_Id_Edit` | Read inventory ID |
 | Object | `PIMS_LabelObject` | Monitor object reference |
+| Object | `PIMS_OpLockTime` | Timestamp when an operation locked the container (nil = not locked) |
+
+### Periodic Unlock Enforcement
+The monitor PFH (every 8 seconds) enforces `lockInventory false` on all tracked containers:
+- Containers without an active operation (`PIMS_OpLockTime` is nil) are force-unlocked to catch phantom relocks from parent class defaults, simulation resets, or locality changes
+- Containers with stale operation locks (>30 seconds) are auto-cleared and force-unlocked
 
 ### Event Handlers Added
 - `PlayerConnected` - Sets up actions for new players, updates UID hashmap
@@ -71,9 +81,10 @@ Initialize the PIMS system, connect to database, set up player connection handle
 
 ### Extension Commands Used
 - `initdb`
-- `checkpermission|{inventoryId}|{playerUid}`
+- `getuserpermissions|{playerUid}` (batch permission fetch, replaces per-module `checkpermission`)
 - `getinventoryname|{inventoryId}`
 - `isadmin|{playerUid}`
+- `saveplayeraddons|{playerUid}|{modList}` (non-blocking, triggered via client addon report)
 - `hasinventorychanged|{inventoryId}` (monitor loop - change detection)
 - `getinventory|{inventoryId}`
 - `getinventorymoney|{inventoryId}`
@@ -233,16 +244,17 @@ Upload all items from a container to the database inventory.
 `Boolean` - `true` on completion
 
 ### Behavior
-1. Locks container inventory
+1. Locks container inventory and sets `PIMS_OpLockTime` timestamp for stale-lock detection
 2. Checks for concurrent upload (lock variable)
 3. Extracts items via `PIMS_fnc_PIMSGetItemArrayFromContainer`
-4. For each item, calls extension `additem|{inventoryId}|{class}|{props}|{qty}`
+4. Batch-uploads items via `additems` extension command
 5. Clears container cargo
 6. Refreshes extension cache
-7. Unlocks container
+7. Unlocks container and clears `PIMS_OpLockTime`
 
 ### Concurrency Protection
 Uses `PIMS_UploadLock_{containerNetId}` in missionNamespace.
+Uses `PIMS_OpLockTime` object variable for stale-lock detection (auto-cleared by PFH after 30 s).
 
 ### Extension Commands Used
 - `additem|{inventoryId}|{itemClass}|{properties}|{quantity}`
@@ -617,3 +629,55 @@ Nothing (void)
 ```
 PIMS WARNING: Player JohnDoe has version mismatch! Client: 1.9.0, Server: 2.0.0
 ```
+
+---
+
+## PIMS_fnc_PIMSReportAddons
+
+**File:** `fn_PIMSReportAddons.sqf`  
+**Execution:** Client only  
+**Called by:** Server via `remoteExec` on player connect  
+
+### Purpose
+Gather all loaded addon prefixes on the client and report them to the server for admin monitoring.
+
+### Parameters
+| Name | Type | Description |
+|------|------|-------------|
+| `_playerUid` | String | Player's Steam UID |
+
+### Returns
+Nothing (void)
+
+### Behavior
+1. Calls `allAddonsInfo` → `[[prefix, version, isPatched, modIndex, hash], ...]`
+2. Extracts prefix (index 0) from each entry
+3. Sends `[_uid, _modPrefixes]` to server via `PIMS_fnc_PIMSSaveAddons`
+
+---
+
+## PIMS_fnc_PIMSSaveAddons
+
+**File:** `fn_PIMSSaveAddons.sqf`  
+**Execution:** Server only  
+**Called by:** Client via `remoteExec` after gathering addon list  
+
+### Purpose
+Receive a player's addon list from the client and pass it to the extension for non-blocking DB storage.
+
+### Parameters
+| Name | Type | Description |
+|------|------|-------------|
+| `_playerUid` | String | Player's Steam UID |
+| `_modPrefixes` | Array | Array of addon prefix strings |
+
+### Returns
+Nothing (void)
+
+### Behavior
+1. Joins mod prefixes into comma-separated string
+2. Calls `saveplayeraddons|{uid}|{modList}` extension command (returns immediately)
+3. Extension saves to `addon_list` table asynchronously
+
+### Extension Commands Used
+- `saveplayeraddons|{playerUid}|{mod1},{mod2},...`

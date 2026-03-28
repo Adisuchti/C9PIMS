@@ -155,6 +155,42 @@ WHERE Inventory_Id = @inventoryId AND Player_Id = @playerUid
 
 ---
 
+### getuserpermissions
+
+**Purpose:** Get all inventory IDs a player has permission to access (batch query)  
+**Format:** `"PIMS-Ext" callExtension "getuserpermissions|{playerUid}"`  
+**Returns:** SQF array string, e.g. `"[1,2,5]"` or `"[]"` if none
+
+**SQL:**
+```sql
+SELECT Inventory_Id FROM permissions WHERE Player_Id = @playerUid
+```
+
+**Use Case:** Called once during `PlayerConnected` to batch-fetch all permissions for a player, replacing N individual `checkpermission` calls (N+1 query fix).
+
+---
+
+### saveplayeraddons
+
+**Purpose:** Save a player's loaded addons to the `addon_list` database table (non-blocking)  
+**Format:** `"PIMS-Ext" callExtension "saveplayeraddons|{playerUid}|{mod1},{mod2},{mod3},..."`  
+**Returns:** `""` (empty string, returns immediately — DB write is asynchronous)
+
+**Behavior:**
+1. Parses comma-separated mod list
+2. Returns immediately (non-blocking for SQF)
+3. Background task: deletes old entries for this player, then batch-inserts new entries in a single transaction
+
+**SQL:**
+```sql
+DELETE FROM addon_list WHERE SteamUid = @uid;
+INSERT INTO addon_list (SteamUid, Mod) VALUES (@uid, @mod);  -- per mod
+```
+
+**Use Case:** Called on player connect after client reports its loaded addons via `allAddonsInfo`. Allows admins to monitor which mods players are running.
+
+---
+
 ### isadmin
 
 **Purpose:** Check if player is an admin  
@@ -412,7 +448,9 @@ $"Server={server};Database={database};Uid={user};Pwd={password};Port={port};SslM
 |--------|------------|---------|-------------|
 | `TestConnection` | `out string errorMessage` | `bool` | Verify DB connection |
 | `CheckPermission` | `inventoryId, playerUid` | `bool` | Check player access |
+| `GetPlayerPermissions` | `playerUid` | `List<int>` | Get all inventory IDs player can access |
 | `IsAdmin` | `playerUid` | `bool` | Check admin status |
+| `SavePlayerAddons` | `playerUid, mods` | `void` | Save player's loaded addons (async) |
 | `GetInventoryName` | `inventoryId` | `string?` | Get display name |
 | `GetInventoryMoney` | `inventoryId` | `double` | Get cash balance |
 | `WithdrawMoney` | `inventoryId, amount` | `bool` | Deduct from balance |

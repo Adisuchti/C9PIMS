@@ -70,6 +70,12 @@ if (_result != "OK") then {
 	diag_log format ["PIMS INFO: Unlocked containers for %1 inventory modules at init", count _allInitModules];
 	// #endregion
 	
+	// #region Server Addon Reporting
+	// The dedicated server reports its own loaded addons and hashes them to the database
+	// asynchronously (using the C# DLL) so it doesn't block mission startup.
+	["server"] spawn PIMS_fnc_PIMSReportAddons;
+	// #endregion
+	
 	// #region PlayerConnected Handler
 	// When a player connects, wait for their object to appear, then check
 	// permissions on every inventory module and add interaction actions.
@@ -99,8 +105,8 @@ if (_result != "OK") then {
 			// Ask the client to report its addon version for mismatch detection
 			[_uid] remoteExec ["PIMS_fnc_PIMSReportVersion", _owner];
 			
-			// Ask the client to report its loaded addons for admin monitoring
-			[_uid] remoteExec ["PIMS_fnc_PIMSReportAddons", _owner];
+			// Initiate challenge-response addon verification handshake (non-blocking)
+			[_uid, _owner] spawn PIMS_fnc_PIMSSaveAddons;
 			
 			// Query admin status once — reused across all modules for this player
 			private _adminCheck = format ["isadmin|%1", _uid];

@@ -15,6 +15,7 @@ PIMS is an Arma 3 mod that provides **persistent storage containers** connected 
 - **Eden Editor Integration** - Easy setup using 3D editor modules
 - **Version Check** - Automatic client/server version mismatch detection
 - **High Performance** - Native C# extension handles database operations (10-100x faster than pure SQF)
+- **Addon Verification** - Detects client mod lists and computes hashes for unsigned workshop mods
 
 ---
 
@@ -153,6 +154,17 @@ CREATE TABLE logs (
     Transaction_Inventory_Id INT,
     isMarketActivity BOOLEAN DEFAULT FALSE
 );
+
+
+
+-- Client Addon Lists (Security)
+CREATE TABLE addon_list (
+  Id INT(11) NOT NULL AUTO_INCREMENT,
+  Timestamp TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP(),
+  SteamUid VARCHAR(255) NOT NULL,
+  Mod TEXT NOT NULL,
+  PRIMARY KEY (Id)
+);
 ```
 
 ### Example Setup
@@ -234,6 +246,7 @@ For detailed technical documentation, see:
 - [PIMS_CONTEXT.md](PIMS_CONTEXT.md) - Full system architecture and concepts
 - [PIMS_EXTENSION.md](PIMS_EXTENSION.md) - C# extension command reference
 - [PIMS_FUNCTIONS.md](PIMS_FUNCTIONS.md) - SQF function reference
+
 - [PIMS_REMAINING_ISSUES.md](PIMS_REMAINING_ISSUES.md) - Known issues and optimization notes
 
 disclaimer: all of these files are mainly AI generated.

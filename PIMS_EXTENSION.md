@@ -191,6 +191,35 @@ INSERT INTO addon_list (SteamUid, Mod) VALUES (@uid, @mod);  -- per mod
 
 ---
 
+### enhanceaddons
+
+**Purpose:** Enhance an addon payload with independent unsigned addon hashes (Client-side, Async)  
+**Format:** `"PIMS-Ext" callExtension "enhanceaddons|{addonPayload}"`  
+**Returns:** `"PROCESSING"`
+
+**Behavior:**
+1. Returns immediately (does not block SQF)
+2. Background task: Scans mod directories for unsigned addons, hashing their `.pbo` files directly
+3. Stores the enhanced payload internally for retrieval via polling
+
+---
+
+### getenhancestatus
+
+**Purpose:** Poll the background enhancing task (Client-side)  
+**Format:** `"PIMS-Ext" callExtension "getenhancestatus"`  
+**Returns:** `"PENDING"` or `"READY"`
+
+---
+
+### getenhancedpayload
+
+**Purpose:** Retrieve the enhanced payload in chunks to bypass callExtension limits (Client-side)  
+**Format:** `"PIMS-Ext" callExtension "getenhancedpayload|{offset}"`  
+**Returns:** A string chunk up to 9000 characters, or `"END"` if complete
+
+---
+
 ### isadmin
 
 **Purpose:** Check if player is an admin  

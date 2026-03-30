@@ -145,6 +145,9 @@ class CfgFunctions
             class PIMSSaveAddons {
                 recompile = RECOMPILE_FUNCTIONS;
             };
+            class PIMSVerifyAddons {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
         };
 	};
 };

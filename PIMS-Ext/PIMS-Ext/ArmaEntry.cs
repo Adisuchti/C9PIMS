@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using PIMSExt.Models;
@@ -136,6 +137,9 @@ namespace PIMSExt
                     "getallinventories" => HandleGetAllInventories(parts),
                     "getuserpermissions" => HandleGetUserPermissions(parts),
                     "saveplayeraddons" => HandleSavePlayerAddons(parts),
+                    "enhanceaddons" => HandleEnhanceAddons(parts),
+                    "getenhancedpayload" => HandleGetEnhancedPayload(parts),
+                    "getenhancestatus" => HandleGetEnhanceStatus(parts),
                     "ping" => "pong",
                     _ => $"Error: Unknown command '{command}'"
                 };
@@ -1110,6 +1114,216 @@ namespace PIMSExt
             
             // Simple hash using string hash code
             return sb.ToString().GetHashCode().ToString();
+        }
+
+        #endregion
+
+        #region Addon Enhancing
+
+        // Cached PBO prefix → file path mapping (built once, reused)
+        private static Dictionary<string, string>? _pboMappings = null;
+
+        // Enhanced payload from last enhanceaddons call (with DLL-computed hashes filled in).
+        // Stored here because it's too large to return via callExtension (~150K chars).
+        // SQF reads it in chunks via getenhancedpayload.
+        private static string? _lastEnhancedPayload = null;
+
+        // Async enhancing state — enhanceaddons kicks off a background task and returns immediately.
+        // SQF polls getenhancestatus until the result is ready.
+        private static volatile bool _enhanceTaskComplete = false;
+
+        private static List<string> GetModSearchDirectories()
+        {
+            string basePath = AppDomain.CurrentDomain.BaseDirectory;
+            var searchDirs = new List<string> { basePath };
+
+            string workshopPath = Path.Combine(basePath, "!Workshop");
+            if (Directory.Exists(workshopPath))
+                searchDirs.Add(workshopPath);
+
+            string? modsBaseDir = Directory.GetParent(basePath)?.FullName;
+            if (!string.IsNullOrEmpty(modsBaseDir))
+                searchDirs.Add(modsBaseDir);
+
+            try
+            {
+                string cmdLine = Environment.CommandLine;
+                int modIdx = cmdLine.IndexOf("-mod=", StringComparison.OrdinalIgnoreCase);
+                if (modIdx >= 0)
+                {
+                    int startIdx = modIdx + 5;
+                    bool inQuotes = false;
+                    int endIdx = startIdx;
+                    for (; endIdx < cmdLine.Length; endIdx++)
+                    {
+                        if (cmdLine[endIdx] == '"') inQuotes = !inQuotes;
+                        else if (!inQuotes && cmdLine[endIdx] == ' ') break;
+                    }
+                    
+                    string modArg = cmdLine.Substring(startIdx, endIdx - startIdx).Replace("\"", "");
+                    searchDirs.AddRange(modArg.Split(';', StringSplitOptions.RemoveEmptyEntries));
+                }
+            }
+            catch { /* Ignore cmdline parse errors */ }
+
+            return searchDirs.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>
+        /// For addon entries with empty hashes (unsigned addons), find their PBO files
+        /// on disk, compute SHA-256 hashes, and return an enhanced payload with all hashes filled in.
+        /// DLL-computed hashes are prefixed with "D:" to distinguish from engine hashes.
+        /// </summary>
+        private static string HashUnsignedAddons(string payload)
+        {
+            // Build PBO prefix map if not cached
+            if (_pboMappings == null)
+            {
+                var searchDirs = GetModSearchDirectories();
+                _pboMappings = PboReader.BuildPrefixMap(searchDirs);
+                WriteToLog($"PBO prefix map built: {_pboMappings.Count} PBOs found in {searchDirs.Count} base directories", LogLevel.Info);
+            }
+
+            // Parse the payload: comma-separated entries of "prefix:hash"
+            string[] entries = payload.Split(',');
+            var enhanced = new string[entries.Length];
+            int filled = 0;
+
+            for (int i = 0; i < entries.Length; i++)
+            {
+                string entry = entries[i];
+                int colonIdx = entry.LastIndexOf(':');
+                if (colonIdx < 0)
+                {
+                    enhanced[i] = entry;
+                    continue;
+                }
+
+                string prefix = entry.Substring(0, colonIdx);
+                string hash = entry.Substring(colonIdx + 1);
+
+                if (string.IsNullOrEmpty(hash))
+                {
+                    // Unsigned addon — try to find and hash its PBO
+                    string normalizedPrefix = PboReader.NormalizePrefix(prefix);
+                    if (_pboMappings.TryGetValue(normalizedPrefix, out string? pboPath))
+                    {
+                        try
+                        {
+                            byte[] fileBytes = File.ReadAllBytes(pboPath);
+                            byte[] hashBytes = SHA256.HashData(fileBytes);
+                            string dllHash = "D:" + Convert.ToHexString(hashBytes).ToLowerInvariant();
+                            enhanced[i] = prefix + ":" + dllHash;
+                            filled++;
+                        }
+                        catch
+                        {
+                            enhanced[i] = entry; // Keep original on error
+                        }
+                    }
+                    else
+                    {
+                        enhanced[i] = entry; // No PBO found, keep as-is
+                    }
+                }
+                else
+                {
+                    enhanced[i] = entry; // Already has a hash
+                }
+            }
+
+            if (filled > 0)
+            {
+                WriteToLog($"Computed DLL hashes for {filled} unsigned addons", LogLevel.Info);
+            }
+
+            return string.Join(",", enhanced);
+        }
+
+        /// <summary>
+        /// Client-side: Enhance an addon payload with DLL-computed hashes.
+        /// Format: enhanceaddons|addonPayload
+        /// Returns: "PROCESSING" immediately — all heavy work (PBO scanning, hashing)
+        /// runs in a background task. SQF polls getenhancestatus for the result.
+        /// </summary>
+        private static string HandleEnhanceAddons(string[] parts)
+        {
+            if (parts.Length < 2)
+                return "Error: enhanceaddons requires 1 parameter: addonPayload";
+
+            string payload = string.Join("|", parts.Skip(1));
+
+            // Reset async state
+            _enhanceTaskComplete = false;
+            _lastEnhancedPayload = null;
+
+            // All heavy work in background — returns immediately, never blocks SQF
+            Task.Run(() =>
+            {
+                try
+                {
+                    // Fill in DLL-computed hashes for unsigned addons.
+                    // If this fails for any reason, fall back to the original payload.
+                    string enhancedPayload;
+                    try
+                    {
+                        enhancedPayload = HashUnsignedAddons(payload);
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteToLog($"PBO hashing failed, using original payload: {ex.Message}", LogLevel.Warning);
+                        enhancedPayload = payload;
+                    }
+
+                    // Store enhanced payload for chunked retrieval
+                    _lastEnhancedPayload = enhancedPayload;
+                    WriteToLog($"Enhanced payload ready ({enhancedPayload.Length} chars)", LogLevel.Info);
+                }
+                catch (Exception ex)
+                {
+                    WriteToLog($"Enhance task failed: {ex.Message}", LogLevel.Error);
+                }
+                finally
+                {
+                    _enhanceTaskComplete = true;
+                }
+            });
+
+            return "PROCESSING";
+        }
+
+        /// <summary>
+        /// Client-side: Poll for the async enhanceaddons result.
+        /// Format: getenhancestatus
+        /// Returns: "PENDING" or "READY"
+        /// </summary>
+        private static string HandleGetEnhanceStatus(string[] parts)
+        {
+            if (!_enhanceTaskComplete)
+                return "PENDING";
+
+            return "READY";
+        }
+
+        /// <summary>
+        /// Client-side: Retrieve a chunk of the enhanced payload (with DLL-computed hashes).
+        /// Format: getenhancedpayload|offset
+        /// Returns: up to 9000 chars of the stored enhanced payload, or "END" when done.
+        /// </summary>
+        private static string HandleGetEnhancedPayload(string[] parts)
+        {
+            if (_lastEnhancedPayload == null)
+                return "END";
+
+            if (parts.Length < 2 || !int.TryParse(parts[1], out int offset))
+                return "Error: getenhancedpayload requires 1 parameter: offset";
+
+            if (offset >= _lastEnhancedPayload.Length)
+                return "END";
+
+            // Return up to 9000 chars to stay safely within callExtension output buffer (~10240)
+            int chunkSize = Math.Min(9000, _lastEnhancedPayload.Length - offset);
+            return _lastEnhancedPayload.Substring(offset, chunkSize);
         }
 
         #endregion

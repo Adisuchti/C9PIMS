@@ -1,23 +1,20 @@
 /*
  * fn_PIMSSaveAddons.sqf
  *
- * Server-side function that receives a player's addon list from the
- * client and passes it to the C# extension for asynchronous DB storage.
- * The extension returns immediately — no server blocking.
+ * Server-side function that initiates the challenge-response handshake
+ * for addon verification. Generates a cryptographic challenge via the
+ * C# DLL and sends it to the client for signing.
  *
  * Parameters:
- *   _playerUid   - Player's Steam UID
- *   _modPrefixes - Array of addon prefix strings
+ *   _playerUid - Player's Steam UID
+ *   _owner     - Owner ID of the client machine (from PlayerConnected)
  */
 
 if (!isServer) exitWith {};
 
-params [["_playerUid", ""], ["_modPrefixes", []]];
+params [["_playerUid", ""], ["_owner", -1]];
 
-if (_playerUid == "" || count _modPrefixes == 0) exitWith {};
+if (_playerUid == "" || _owner < 0) exitWith {};
 
-// Join into comma-separated string for the extension
-private _modList = _modPrefixes joinString ",";
-
-// Fire-and-forget: extension returns "" immediately, saves in background
-"PIMS-Ext" callExtension format ["saveplayeraddons|%1|%2", _playerUid, _modList];
+// Step 1: Request the client to report its addons
+[_playerUid] remoteExec ["PIMS_fnc_PIMSReportAddons", _owner];

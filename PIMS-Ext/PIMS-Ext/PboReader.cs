@@ -74,6 +74,61 @@ namespace PIMSExt
         }
 
         /// <summary>
+        /// Reads the internal file tree of a PBO and formats it into a structured text report.
+        /// Extracts filenames, original sizes, and compression status.
+        /// Returns "Error: ..." on failure.
+        /// </summary>
+        public static string GetPboFileTree(string pboPath)
+        {
+            try
+            {
+                using var fs = new FileStream(pboPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var reader = new BinaryReader(fs, Encoding.ASCII);
+                var sb = new StringBuilder();
+
+                while (fs.Position < fs.Length)
+                {
+                    string filename = ReadNullTerminatedString(reader);
+                    
+                    uint packingMethod = reader.ReadUInt32();
+                    uint originalSize = reader.ReadUInt32();
+                    uint reserved = reader.ReadUInt32();
+                    uint timeStamp = reader.ReadUInt32();
+                    uint dataSize = reader.ReadUInt32();
+
+                    // Empty filename + 0 method + 0 size signifies end of directory header
+                    if (filename.Length == 0 && packingMethod == 0 && originalSize == 0)
+                    {
+                        break;
+                    }
+
+                    // Properties block
+                    if (filename.Length == 0 && packingMethod == VERS_METHOD)
+                    {
+                        while (true)
+                        {
+                            string propName = ReadNullTerminatedString(reader);
+                            if (string.IsNullOrEmpty(propName)) break;
+                            string propValue = ReadNullTerminatedString(reader);
+                        }
+                        continue;
+                    }
+
+                    bool isCompressed = (packingMethod == 0x43707273); // 'Cprs'
+                    string compState = isCompressed ? "Compressed" : "Uncompressed";
+                    
+                    sb.AppendLine($"{filename} - {originalSize} bytes ({compState})");
+                }
+
+                return sb.ToString().TrimEnd();
+            }
+            catch (Exception ex)
+            {
+                return $"Error reading PBO tree: {ex.Message}";
+            }
+        }
+
+        /// <summary>
         /// Scan directories for PBO files and build a mapping from
         /// normalized addon prefix to PBO file path.
         /// Searches both the given directories directly (if they have an Addons folder)

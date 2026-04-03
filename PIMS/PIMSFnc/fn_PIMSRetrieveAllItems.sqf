@@ -135,7 +135,7 @@ _container lockInventory false;
 [_container, false] remoteExec ["lockInventory", 0];
 _container setVariable ["PIMS_OpLockTime", nil, true];
 
-// Upload inventory to refresh extension cache
+// Upload inventory to refresh extension cache BEFORE signaling client
 [_inventoryId] call PIMS_fnc_PIMSUploadInventoryToExtension;
 
 // Send results back to client

@@ -59,6 +59,10 @@ try {
 			// Success path
 			_success = true;
 			
+			// Upload inventory to refresh extension cache BEFORE signaling client
+			// This ensures the client sees the updated data on their next refresh call
+			[_inventoryId] call PIMS_fnc_PIMSUploadInventoryToExtension;
+
 			// Set variables directly on client using remoteExec
 			if (!isNull _player) then {
 				[format ["PIMS_retrieveSuccess_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
@@ -85,9 +89,6 @@ _container lockInventory false;
 [_container, false] remoteExec ["lockInventory", 0];
 _container setVariable ["PIMS_OpLockTime", nil, true];
 
-// Upload inventory to refresh extension cache (after unlock to minimize lock duration)
-if (_success) then {
-	[_inventoryId] call PIMS_fnc_PIMSUploadInventoryToExtension;
-};
+// Success path already uploaded cache above
 
 true

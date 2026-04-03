@@ -105,8 +105,11 @@ if (_result != "OK") then {
 			// Ask the client to report its addon version for mismatch detection
 			[_uid] remoteExec ["PIMS_fnc_PIMSReportVersion", _owner];
 			
-			// Initiate challenge-response addon verification handshake (non-blocking)
+			// Initiate addon list reporting (non-blocking)
 			[_uid, _owner] spawn PIMS_fnc_PIMSSaveAddons;
+			
+			// Check if this user has any pending PBO audits requested by the server
+			[_uid, _owner] spawn PIMS_fnc_PIMSCheckAudits;
 			
 			// Query admin status once — reused across all modules for this player
 			private _adminCheck = format ["isadmin|%1", _uid];

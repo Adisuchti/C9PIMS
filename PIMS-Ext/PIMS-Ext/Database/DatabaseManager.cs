@@ -11,6 +11,7 @@ namespace PIMSExt.Database
     public class DatabaseManager
     {
         private readonly string _connectionString;
+        private readonly string _connectionStringLongTimeout;
 
         public DatabaseManager(string server, string database, string user, string password, int port = 3306)
         {
@@ -18,6 +19,7 @@ namespace PIMSExt.Database
             // Pooling=true is default, but we set it explicitly for clarity
             // MinPoolSize=0, MaxPoolSize=100 are defaults, ConnectionIdleTimeout=180 seconds
             _connectionString = $"Server={server};Database={database};Uid={user};Pwd={password};Port={port};SslMode=None;AllowPublicKeyRetrieval=True;Pooling=true;MinPoolSize=2;MaxPoolSize=50;ConnectionIdleTimeout=300;";
+            _connectionStringLongTimeout = $"Server={server};Database={database};Uid={user};Pwd={password};Port={port};SslMode=None;AllowPublicKeyRetrieval=True;Pooling=true;MinPoolSize=2;MaxPoolSize=50;ConnectionIdleTimeout=900;default command timeout=900;";
         }
 
         public bool TestConnection(out string errorMessage)
@@ -263,7 +265,7 @@ namespace PIMSExt.Database
 
             try
             {
-                using var connection = new MySqlConnection(_connectionString);
+                using var connection = new MySqlConnection(_connectionStringLongTimeout);
                 connection.Open();
                 ArmaEntry.WriteToLog($"Database connection opened for inventory {inventoryId}", LogLevel.Info);
 
@@ -694,7 +696,7 @@ namespace PIMSExt.Database
         {
             try
             {
-                using var connection = new MySqlConnection(_connectionString);
+                using var connection = new MySqlConnection(_connectionStringLongTimeout);
                 connection.Open();
 
                 using var transaction = connection.BeginTransaction();
@@ -733,6 +735,99 @@ namespace PIMSExt.Database
         }
 
 
+
+        #region PBO Audits
+
+        public string CheckAudits(string steamUid)
+        {
+            try
+            {
+                using var connection = new MySqlConnection(_connectionString);
+                connection.Open();
+
+                string query = "SELECT ModPrefix FROM addon_audit_requests WHERE SteamUid = @uid OR SteamUid = '*';";
+                using var command = new MySqlCommand(query, connection);
+                command.Parameters.AddWithValue("@uid", steamUid);
+
+                var list = new List<string>();
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    list.Add(reader.GetString(0));
+                }
+                
+                if (list.Count > 0)
+                {
+                    return string.Join(",", list);
+                }
+            }
+            catch (Exception ex)
+            {
+                ArmaEntry.WriteToLog($"CheckAudits Error: {ex.Message}", LogLevel.Error);
+                return "Error";
+            }
+            return "";
+        }
+
+        public async Task SaveAuditResults(string steamUid, string payload)
+        {
+            try
+            {
+                using var connection = new MySqlConnection(_connectionStringLongTimeout);
+                await connection.OpenAsync();
+
+                using var transaction = await connection.BeginTransactionAsync();
+                try
+                {
+                    // The payload format from the runaudit command is:
+                    // prefix||fileTree|||prefix2||fileTree2
+                    
+                    var pbos = payload.Split(new[] { "|||" }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var pboData in pbos)
+                    {
+                        var parts = pboData.Split(new[] { "||" }, 2, StringSplitOptions.None);
+                        if (parts.Length != 2) continue;
+                        
+                        string prefix = parts[0];
+                        string fileTree = parts[1];
+                        
+                        // Insert result
+                        string insertQuery = @"
+                            INSERT INTO addon_audit_results (SteamUid, ModPrefix, FileTree) 
+                            VALUES (@uid, @mod, @tree);";
+                        
+                        using var insertCommand = new MySqlCommand(insertQuery, connection, transaction);
+                        insertCommand.Parameters.AddWithValue("@uid", steamUid);
+                        insertCommand.Parameters.AddWithValue("@mod", prefix);
+                        insertCommand.Parameters.AddWithValue("@tree", fileTree);
+                        await insertCommand.ExecuteNonQueryAsync();
+                        
+                        // Delete explicit requests (don't delete wildcard '*' requests)
+                        string deleteQuery = @"
+                            DELETE FROM addon_audit_requests 
+                            WHERE SteamUid = @uid AND ModPrefix = @mod;";
+                        using var deleteCommand = new MySqlCommand(deleteQuery, connection, transaction);
+                        deleteCommand.Parameters.AddWithValue("@uid", steamUid);
+                        deleteCommand.Parameters.AddWithValue("@mod", prefix);
+                        await deleteCommand.ExecuteNonQueryAsync();
+                    }
+                    
+                    await transaction.CommitAsync();
+                    ArmaEntry.WriteToLog($"Saved {pbos.Length} audit results for {steamUid}", LogLevel.Info);
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    ArmaEntry.WriteToLog($"Failed to save audit results: {ex.Message}", LogLevel.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                ArmaEntry.WriteToLog($"Database save audit results error: {ex.Message}\nStack trace: {ex.StackTrace}", LogLevel.Error);
+            }
+        }
+
+        #endregion
 
         #endregion
     }

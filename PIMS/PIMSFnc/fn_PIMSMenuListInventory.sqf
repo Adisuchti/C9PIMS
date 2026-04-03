@@ -156,6 +156,12 @@ fn_updateInventoryView = {
 	private _inventoryMoney = missionNamespace getVariable [format ["PIMS_InventoryMoney_%1", _playerUid], 0];
 	private _inventoryName = missionNamespace getVariable [format ["PIMS_InventoryName_%1", _playerUid], "Unknown"];
 	
+	// Explicitly clear the variables in missionNamespace to avoid stale data on next refresh
+	missionNamespace setVariable [format ["PIMS_InventoryItems_%1", _playerUid], nil];
+	missionNamespace setVariable [format ["PIMS_InventoryMoney_%1", _playerUid], nil];
+	missionNamespace setVariable [format ["PIMS_InventoryName_%1", _playerUid], nil];
+	missionNamespace setVariable [format ["PIMS_InventoryDataReady_%1", _playerUid], nil];
+	
 	// Set the dialog title to the inventory's display name
 	private _titleCtrl = _display displayCtrl 1001;
 	_titleCtrl ctrlSetStructuredText parseText format ["<t align='center' size='1.5' color='#ff00ff66'>%1</t>", _inventoryName];
@@ -261,9 +267,7 @@ fn_updateInventoryView = {
 			_listBox lbSetText [_i, _text];
 			_listBox lbSetData [_i, _data];
 			_listBox lbSetValue [_i, _value];
-			if (_picture != "") then {
-				_listBox lbSetPicture [_i, _picture];
-			};
+			_listBox lbSetPicture [_i, _picture]; // Always update picture to ensure it clears if blank
 		};
 	};
 	
@@ -276,9 +280,7 @@ fn_updateInventoryView = {
 			private _index = _listBox lbAdd _text;
 			_listBox lbSetData [_index, _data];
 			_listBox lbSetValue [_index, _value];
-			if (_picture != "") then {
-				_listBox lbSetPicture [_index, _picture];
-			};
+			_listBox lbSetPicture [_index, _picture]; // Set picture (even if empty)
 		};
 	};
 	

@@ -140,6 +140,11 @@ namespace PIMSExt
                     "enhanceaddons" => HandleEnhanceAddons(parts),
                     "getenhancedpayload" => HandleGetEnhancedPayload(parts),
                     "getenhancestatus" => HandleGetEnhanceStatus(parts),
+                    "checkaudits" => HandleCheckAudits(parts),
+                    "runaudit" => HandleRunAudit(parts),
+                    "getauditstatus" => HandleGetAuditStatus(parts),
+                    "getauditpayload" => HandleGetAuditPayload(parts),
+                    "saveauditresults" => HandleSaveAuditResults(parts),
                     "ping" => "pong",
                     _ => $"Error: Unknown command '{command}'"
                 };
@@ -1324,6 +1329,104 @@ namespace PIMSExt
             // Return up to 9000 chars to stay safely within callExtension output buffer (~10240)
             int chunkSize = Math.Min(9000, _lastEnhancedPayload.Length - offset);
             return _lastEnhancedPayload.Substring(offset, chunkSize);
+        }
+
+        #endregion
+
+        #region PBO Audits
+
+        private static string? _lastAuditPayload = null;
+        private static volatile bool _auditTaskComplete = false;
+
+        private static string HandleCheckAudits(string[] parts)
+        {
+            if (parts.Length < 2) return "Error: checkaudits requires 1 parameter: uid";
+            string uid = parts[1];
+            if (_dbManager == null) return "Error: Database not initialized";
+            string auditPrefixes = _dbManager.CheckAudits(uid);
+            if (string.IsNullOrEmpty(auditPrefixes))
+                return "NONE";
+            return auditPrefixes;
+        }
+
+        private static string HandleSaveAuditResults(string[] parts)
+        {
+            if (parts.Length < 3) return "Error: saveauditresults requires minimum 2 parameters: uid, payload";
+            string uid = parts[1];
+            // payload might contain pipe characters if split inside SQF
+            string payload = string.Join("|", parts.Skip(2));
+            
+            if (_dbManager != null)
+            {
+                Task.Run(() => _dbManager.SaveAuditResults(uid, payload));
+            }
+            return "";
+        }
+
+        private static string HandleRunAudit(string[] parts)
+        {
+            if (parts.Length < 2) return "Error: runaudit requires 1 parameter: prefixes";
+            string prefixes = parts[1];
+            
+            _auditTaskComplete = false;
+            _lastAuditPayload = null;
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    string[] prefixArray = prefixes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                    
+                    var searchDirs = GetModSearchDirectories();
+                    _pboMappings = PboReader.BuildPrefixMap(searchDirs);
+                    
+                    var sb = new StringBuilder();
+                    foreach (var prefix in prefixArray)
+                    {
+                        string normalizedPrefix = PboReader.NormalizePrefix(prefix);
+                        if (_pboMappings.TryGetValue(normalizedPrefix, out string? pboPath))
+                        {
+                            string fileTree = PboReader.GetPboFileTree(pboPath);
+                            sb.Append(prefix).Append("||").Append(fileTree).Append("|||");
+                        }
+                    }
+
+                    _lastAuditPayload = sb.ToString();
+                    WriteToLog($"Audit payload ready ({_lastAuditPayload.Length} chars)", LogLevel.Info);
+                }
+                catch (Exception ex)
+                {
+                    WriteToLog($"Audit task failed: {ex.Message}", LogLevel.Error);
+                }
+                finally
+                {
+                    _auditTaskComplete = true;
+                }
+            });
+
+            return "PROCESSING";
+        }
+
+        private static string HandleGetAuditStatus(string[] parts)
+        {
+            if (!_auditTaskComplete)
+                return "PENDING";
+            return "READY";
+        }
+
+        private static string HandleGetAuditPayload(string[] parts)
+        {
+            if (_lastAuditPayload == null)
+                return "END";
+
+            if (parts.Length < 2 || !int.TryParse(parts[1], out int offset))
+                return "Error: getauditpayload requires 1 parameter: offset";
+
+            if (offset >= _lastAuditPayload.Length)
+                return "END";
+
+            int chunkSize = Math.Min(9000, _lastAuditPayload.Length - offset);
+            return _lastAuditPayload.Substring(offset, chunkSize);
         }
 
         #endregion

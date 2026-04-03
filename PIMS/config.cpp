@@ -148,6 +148,15 @@ class CfgFunctions
             class PIMSVerifyAddons {
                 recompile = RECOMPILE_FUNCTIONS;
             };
+            class PIMSCheckAudits {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class PIMSClientAudit {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
+            class PIMSSaveAuditResults {
+                recompile = RECOMPILE_FUNCTIONS;
+            };
         };
 	};
 };

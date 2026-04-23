@@ -709,14 +709,33 @@ namespace PIMSExt.Database
                     deleteCommand.Parameters.AddWithValue("@uid", playerUid);
                     deleteCommand.ExecuteNonQuery();
 
-                    // Batch insert new entries
-                    string insertQuery = "INSERT INTO `addon_list` (`SteamUid`, `Mod`) VALUES (@uid, @mod)";
-                    foreach (string mod in mods)
+                    // Batch insert new entries using multi-value INSERT to avoid long transactions
+                    if (mods.Count > 0)
                     {
-                        using var insertCommand = new MySqlCommand(insertQuery, connection, transaction);
-                        insertCommand.Parameters.AddWithValue("@uid", playerUid);
-                        insertCommand.Parameters.AddWithValue("@mod", mod);
-                        insertCommand.ExecuteNonQuery();
+                        int batchSize = 500;
+                        for (int i = 0; i < mods.Count; i += batchSize)
+                        {
+                            int count = Math.Min(batchSize, mods.Count - i);
+                            var insertQuery = new System.Text.StringBuilder("INSERT INTO `addon_list` (`SteamUid`, `Mod`) VALUES ");
+                            using var insertCommand = new MySqlCommand();
+                            insertCommand.Connection = connection;
+                            insertCommand.Transaction = transaction;
+                            
+                            insertCommand.Parameters.AddWithValue("@uid", playerUid);
+                            
+                            for (int j = 0; j < count; j++)
+                            {
+                                int modIndex = i + j;
+                                insertQuery.Append($"(@uid, @mod{j})");
+                                if (j < count - 1)
+                                    insertQuery.Append(", ");
+                                    
+                                insertCommand.Parameters.AddWithValue($"@mod{j}", mods[modIndex]);
+                            }
+                            
+                            insertCommand.CommandText = insertQuery.ToString();
+                            insertCommand.ExecuteNonQuery();
+                        }
                     }
 
                     transaction.Commit();

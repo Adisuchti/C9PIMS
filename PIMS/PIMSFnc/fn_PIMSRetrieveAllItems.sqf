@@ -22,8 +22,8 @@ private _container = objectFromNetId _containerNetId;
 if (isNull _container) exitWith {
 	if (!isNull _player) then {
 		["PIMS ERROR: Container not found"] remoteExec ["systemChat", _player];
-		[format ["PIMS_retrieveAllDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-		[format ["PIMS_retrieveAllSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveAllDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveAllSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
 	};
 	false
 };
@@ -35,8 +35,8 @@ private _result = "PIMS-Ext" callExtension _getItemsCommand;
 if (_result == "" || _result == "ERROR" || {_result find "Error" == 0}) exitWith {
 	if (!isNull _player) then {
 		[format ["PIMS ERROR: Failed to get items from database: %1", _result]] remoteExec ["systemChat", _player];
-		[format ["PIMS_retrieveAllDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-		[format ["PIMS_retrieveAllSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveAllDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveAllSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
 	};
 	false
 };
@@ -48,8 +48,8 @@ try {
 } catch {
 	if (!isNull _player) then {
 		[format ["PIMS ERROR: Failed to parse inventory data: %1", _exception]] remoteExec ["systemChat", _player];
-		[format ["PIMS_retrieveAllDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-		[format ["PIMS_retrieveAllSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveAllDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveAllSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
 	};
 };
 
@@ -58,8 +58,8 @@ private _initialItemCount = count _itemsArray;
 if (_initialItemCount == 0) exitWith {
 	if (!isNull _player) then {
 		["PIMS INFO: No items to retrieve"] remoteExec ["systemChat", _player];
-		[format ["PIMS_retrieveAllDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-		[format ["PIMS_retrieveAllSuccess_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveAllDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveAllSuccess_%1", _playerUid], true]] remoteExec ["setVariable", _player];
 	};
 	true
 };
@@ -146,8 +146,8 @@ if (!isNull _player) then {
 		[format ["PIMS WARNING: Failed items: %1", _failedItems joinString ", "]] remoteExec ["systemChat", _player];
 	};
 	
-	[format ["PIMS_retrieveAllDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-	[format ["PIMS_retrieveAllSuccess_%1", _playerUid], (_successCount > 0)] remoteExec ["missionNamespace setVariable", _player];
+	[missionNamespace, [format ["PIMS_retrieveAllDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+	[missionNamespace, [format ["PIMS_retrieveAllSuccess_%1", _playerUid], (_successCount > 0)]] remoteExec ["setVariable", _player];
 };
 
 true

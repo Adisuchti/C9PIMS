@@ -20,8 +20,8 @@ if (_playerUid != "") then {
 private _container = objectFromNetId _containerNetId;
 if (isNull _container) exitWith {
 	if (!isNull _player) then {
-		[format ["PIMS_withdrawDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-		[format ["PIMS_withdrawSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
+		[missionNamespace, [format ["PIMS_withdrawDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+		[missionNamespace, [format ["PIMS_withdrawSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
 	};
 	false
 };
@@ -44,8 +44,8 @@ try {
 	if (_moneyValue == 0) exitWith {
 		if (!isNull _player) then {
 			["PIMS ERROR: Invalid money denomination"] remoteExec ["systemChat", _player];
-			[format ["PIMS_withdrawDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-			[format ["PIMS_withdrawSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
+			[missionNamespace, [format ["PIMS_withdrawDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+			[missionNamespace, [format ["PIMS_withdrawSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
 		};
 		// Ensure container is unlocked even on early exit
 		_container lockInventory false;
@@ -68,21 +68,21 @@ try {
 		
 		if (!isNull _player) then {
 			[format ["PIMS: Withdrew %1 credits (%2x %3)", _totalAmount, _quantity, _moneyClass]] remoteExec ["systemChat", _player];
-			[format ["PIMS_withdrawDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-			[format ["PIMS_withdrawSuccess_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
+			[missionNamespace, [format ["PIMS_withdrawDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+			[missionNamespace, [format ["PIMS_withdrawSuccess_%1", _playerUid], true]] remoteExec ["setVariable", _player];
 		};
 	} else {
 		if (!isNull _player) then {
 			[format ["PIMS ERROR: Failed to withdraw money: %1", _result]] remoteExec ["systemChat", _player];
-			[format ["PIMS_withdrawDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-			[format ["PIMS_withdrawSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
+			[missionNamespace, [format ["PIMS_withdrawDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+			[missionNamespace, [format ["PIMS_withdrawSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
 		};
 	};
 } catch {
 	if (!isNull _player) then {
 		[format ["PIMS ERROR: Withdraw failed: %1", _exception]] remoteExec ["systemChat", _player];
-		[format ["PIMS_withdrawDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-		[format ["PIMS_withdrawSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
+		[missionNamespace, [format ["PIMS_withdrawDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+		[missionNamespace, [format ["PIMS_withdrawSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
 	};
 };
 

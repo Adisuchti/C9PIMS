@@ -21,8 +21,8 @@ private _container = objectFromNetId _containerNetId;
 if (isNull _container) exitWith {
 	// Set variables directly on client using remoteExec
 	if (!isNull _player) then {
-		[format ["PIMS_retrieveSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
-		[format ["PIMS_retrieveDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
 	};
 	false
 };
@@ -52,8 +52,8 @@ try {
 			
 			// Signal failure
 			if (!isNull _player) then {
-				[format ["PIMS_retrieveSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
-				[format ["PIMS_retrieveDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
+				[missionNamespace, [format ["PIMS_retrieveSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
+				[missionNamespace, [format ["PIMS_retrieveDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
 			};
 		} else {
 			// Success path
@@ -65,22 +65,22 @@ try {
 
 			// Set variables directly on client using remoteExec
 			if (!isNull _player) then {
-				[format ["PIMS_retrieveSuccess_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
-				[format ["PIMS_retrieveDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
+				[missionNamespace, [format ["PIMS_retrieveSuccess_%1", _playerUid], true]] remoteExec ["setVariable", _player];
+				[missionNamespace, [format ["PIMS_retrieveDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
 			};
 		};
 	} else {
 		if (!isNull _player) then {
 			[format ["PIMS ERROR: Failed to retrieve item: %1", _result]] remoteExec ["systemChat", _player];
-			[format ["PIMS_retrieveSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
-			[format ["PIMS_retrieveDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
+			[missionNamespace, [format ["PIMS_retrieveSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
+			[missionNamespace, [format ["PIMS_retrieveDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
 		};
 	};
 } catch {
 	if (!isNull _player) then {
 		[format ["PIMS ERROR: Retrieve failed: %1", _exception]] remoteExec ["systemChat", _player];
-		[format ["PIMS_retrieveSuccess_%1", _playerUid], false] remoteExec ["missionNamespace setVariable", _player];
-		[format ["PIMS_retrieveDone_%1", _playerUid], true] remoteExec ["missionNamespace setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveSuccess_%1", _playerUid], false]] remoteExec ["setVariable", _player];
+		[missionNamespace, [format ["PIMS_retrieveDone_%1", _playerUid], true]] remoteExec ["setVariable", _player];
 	};
 };
 

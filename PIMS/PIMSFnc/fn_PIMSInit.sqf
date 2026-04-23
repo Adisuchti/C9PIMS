@@ -123,6 +123,9 @@ if (_result != "OK") then {
 			private _permResult = "PIMS-Ext" callExtension _permQuery;
 			private _allowedInventories = parseSimpleArray _permResult;
 			
+			// Collect all boxes for which the player has access permissions
+			private _ownedBoxes = [];
+
 			// Collect all editor-placed AddInventory modules
 			private _addInventoryModules = allMissionObjects "Logic" select {
 				typeOf _x == "PIMS_ModuleAddInventory"
@@ -137,6 +140,8 @@ if (_result != "OK") then {
 				private _hasPermission = _inventoryId in _allowedInventories;
 				
 				if (_hasPermission) then {
+					_ownedBoxes append _objects;
+					
 					// Resolve inventory display name (cached per ID to avoid repeat queries)
 					private _inventoryName = _nameCache getOrDefault [_inventoryId, ""];
 					if (_inventoryName == "") then {
@@ -219,6 +224,8 @@ if (_result != "OK") then {
 					private _hasPermission = _inventoryId in _allowedInventories;
 					
 					if (_hasPermission) then {
+						_ownedBoxes pushBack _box;
+						
 						// Resolve inventory display name (cached per ID)
 						private _inventoryName = _nameCache getOrDefault [_inventoryId, ""];
 						if (_inventoryName == "") then {
@@ -284,6 +291,14 @@ if (_result != "OK") then {
 				} forEach PIMS_ZeusSpawnedBoxes;
 			};
 			// #endregion
+
+			// Purge null references and transmit the collection to the client for icon display
+			_ownedBoxes = _ownedBoxes - [objNull];
+			private _playerObj = [_uid] call PIMS_fnc_getPlayerByUID;
+			if (!isNull _playerObj) then {
+				_playerObj setVariable ["C9_OwnedBoxes", _ownedBoxes]; // Set on server for future server-side lookups
+				[_playerObj, ["C9_OwnedBoxes", _ownedBoxes]] remoteExec ["setVariable", _owner];
+			};
 		}, [_uid, _owner]] call CBA_fnc_waitUntilAndExecute;
 	}];
 	// #endregion
@@ -436,11 +451,21 @@ if (_result != "OK") then {
 				private _inventoryId = _x;
 				private _boxes = _inventoryBoxMap get _inventoryId;
 				
-				// Single extension call per inventory ID — compares cached hash, no DB query
+				// Single extension call per inventory ID — compares cached hash, no DB query 
 				private _changeCheck = format ["hasinventorychanged|%1", _inventoryId];
-				private _hasChanged = ("PIMS-Ext" callExtension _changeCheck) == "1";
+				private _hasChangedResponse = "PIMS-Ext" callExtension _changeCheck;
+				private _hasChanged = (_hasChangedResponse == "1");
 				
-				if (_hasChanged) then {
+				// Optimization: Also check if any box in this inventory is missing its monitor display
+				// This ensures Zeus-spawned boxes show data immediately even if the DB hasn't changed.
+				private _needsInitialUpdate = false;
+				{
+					if (isNull (_x getVariable ["PIMS_LabelObject", objNull])) exitWith {
+						_needsInitialUpdate = true;
+					};
+				} forEach _boxes;
+				
+				if (_hasChanged || _needsInitialUpdate) then {
 					// Retrieve cached inventory name, items, and money balance from the extension
 					private _inventoryName = _inventoryNameCache get _inventoryId;
 					
@@ -557,7 +582,7 @@ if (_result != "OK") then {
 			
 			// Queue a non-blocking background DB refresh for the next cycle
 			{ "PIMS-Ext" callExtension format ["queuerefresh|%1", _x]; } forEach _inventoryIds;
-		}, 8, []] call CBA_fnc_addPerFrameHandler;
+		}, 60, []] call CBA_fnc_addPerFrameHandler;
 		// #endregion
 	}, [], 10] call CBA_fnc_waitAndExecute;
 	// #endregion

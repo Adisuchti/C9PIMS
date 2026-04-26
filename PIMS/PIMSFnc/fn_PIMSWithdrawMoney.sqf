@@ -55,8 +55,12 @@ try {
 	
 	private _totalAmount = _moneyValue * _quantity;
 	
+	// Build comment string for transaction logging
+	private _playerName = if (!isNull _player) then {name _player} else {"Unknown"};
+	private _comment = format ["%1 (%2)", _playerName, _playerUid];
+
 	// Withdraw from database via extension
-	private _withdrawCommand = format ["withdrawmoney|%1|%2", _inventoryId, _totalAmount];
+	private _withdrawCommand = format ["withdrawmoney|%1|%2|%3", _inventoryId, _totalAmount, _comment];
 	private _result = "PIMS-Ext" callExtension _withdrawCommand;
 	
 	if (_result == "OK") then {

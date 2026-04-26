@@ -3,7 +3,7 @@
 #include "\a3\3DEN\UI\macroexecs.inc"
 
 #define RECOMPILE_FUNCTIONS 0
-#define PIMS_VERSION "2.0.6"
+#define PIMS_VERSION "2.0.6B"
 
 #define GUI_GRID_X    (0)
 #define GUI_GRID_Y    (0)

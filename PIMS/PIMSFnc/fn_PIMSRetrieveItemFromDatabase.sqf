@@ -33,8 +33,12 @@ _container setVariable ["PIMS_OpLockTime", diag_tickTime, true];
 private _success = false;
 
 try {
+	// Build comment string for transaction logging
+	private _playerName = if (!isNull _player) then {name _player} else {"Unknown"};
+	private _comment = format ["%1 (%2)", _playerName, _playerUid];
+
 	// Remove from database via extension
-	private _removeCommand = format ["removeitem|%1|%2|%3", _contentItemId, _quantity, _inventoryId];
+	private _removeCommand = format ["removeitem|%1|%2|%3|%4", _contentItemId, _quantity, _inventoryId, _comment];
 	private _result = "PIMS-Ext" callExtension _removeCommand;
 	
 	if (_result == "OK") then {
@@ -47,7 +51,7 @@ try {
 			[_errorString] remoteExec ["systemChat", 0];
 
 			// Failed to add to container, rollback database removal
-			private _rollbackCommand = format ["additem|%1|%2|%3|%4", _inventoryId, _itemClass, _properties, _quantity];
+			private _rollbackCommand = format ["additem|%1|%2|%3|%4|%5", _inventoryId, _itemClass, _properties, _quantity, format ["ROLLBACK: %1", _comment]];
 			"PIMS-Ext" callExtension _rollbackCommand;
 			
 			// Signal failure

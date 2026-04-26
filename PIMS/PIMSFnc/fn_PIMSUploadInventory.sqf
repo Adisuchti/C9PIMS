@@ -61,9 +61,13 @@ try {
 			_batchArray pushBack [_className, _properties, _quantity];
 		} forEach _items;
 		
+		// Build comment string for transaction logging
+		private _playerName = if (!isNull _player) then {name _player} else {"Unknown"};
+		private _comment = format ["%1 (%2)", _playerName, _playerUid];
+		
 		// Convert to string for extension call
 		private _batchString = str _batchArray;
-		private _addCommand = format ["additems|%1|%2", _inventoryId, _batchString];
+		private _addCommand = format ["additems|%1|%2|%3", _inventoryId, _batchString, _comment];
 		private _result = "PIMS-Ext" callExtension _addCommand;
 		
 		// Parse result: "OK|count" or "Error: ..."

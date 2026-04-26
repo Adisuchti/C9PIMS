@@ -116,8 +116,8 @@ private _inventoryName = "PIMS-Ext" callExtension _nameQuery;
 			// Update owned boxes for icon display
 			private _currentBoxes = _player getVariable ["C9_OwnedBoxes", []];
 			_currentBoxes pushBackUnique _box;
-			_player setVariable ["C9_OwnedBoxes", _currentBoxes];
-			[_player, ["C9_OwnedBoxes", _currentBoxes]] remoteExec ["setVariable", owner _player];
+			_player setVariable ["C9_OwnedBoxes", _currentBoxes, true];
+
 		};
 	};
 } forEach allPlayers;

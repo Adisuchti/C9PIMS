@@ -219,7 +219,7 @@ namespace PIMSExt.Database
         /// <summary>
         /// Withdraw money from inventory balance (atomic operation)
         /// </summary>
-        public bool WithdrawMoney(int inventoryId, double amount)
+        public bool WithdrawMoney(int inventoryId, double amount, string comment = "")
         {
             try
             {
@@ -240,11 +240,12 @@ namespace PIMSExt.Database
                     return false;
                 }
 
-                string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`) " +
-                                  "VALUES ('MONEY', -@amount, @inventoryId, 0)";
+                string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`, `Comment`) " +
+                                  "VALUES ('MONEY', -@amount, @inventoryId, 0, @comment)";
                 using var logCommand = new MySqlCommand(logQuery, connection);
                 logCommand.Parameters.AddWithValue("@amount", amount);
                 logCommand.Parameters.AddWithValue("@inventoryId", inventoryId);
+                logCommand.Parameters.AddWithValue("@comment", string.IsNullOrEmpty(comment) ? (object)DBNull.Value : comment);
                 logCommand.ExecuteNonQuery();
 
                 return true;
@@ -315,7 +316,7 @@ namespace PIMSExt.Database
         /// <summary>
         /// Add item to inventory
         /// </summary>
-        public bool AddItem(int inventoryId, string itemClass, string properties, int quantity)
+        public bool AddItem(int inventoryId, string itemClass, string properties, int quantity, string comment = "")
         {
             try
             {
@@ -346,11 +347,12 @@ namespace PIMSExt.Database
                     
                     ArmaEntry.WriteToLog($"Added {totalValue} credits to inventory {inventoryId}", LogLevel.Info);
 
-                    string moneyLogQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`) " +
-                                      "VALUES ('MONEY', @amount, @inventoryId, 0)";
+                    string moneyLogQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`, `Comment`) " +
+                                      "VALUES ('MONEY', @amount, @inventoryId, 0, @comment)";
                     using var logMoneyCommand = new MySqlCommand(moneyLogQuery, connection);
                     logMoneyCommand.Parameters.AddWithValue("@amount", totalValue);
                     logMoneyCommand.Parameters.AddWithValue("@inventoryId", inventoryId);
+                    logMoneyCommand.Parameters.AddWithValue("@comment", string.IsNullOrEmpty(comment) ? (object)DBNull.Value : comment);
                     logMoneyCommand.ExecuteNonQuery();
                     
                     return true;
@@ -372,12 +374,13 @@ namespace PIMSExt.Database
                 upsertCommand.Parameters.AddWithValue("@quantity", quantity);
                 upsertCommand.ExecuteNonQuery();
 
-                string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`) " +
-                                  "VALUES (@itemClass, @quantity, @inventoryId, 0)";
+                string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`, `Comment`) " +
+                                  "VALUES (@itemClass, @quantity, @inventoryId, 0, @comment)";
                 using var logCommand = new MySqlCommand(logQuery, connection);
                 logCommand.Parameters.AddWithValue("@itemClass", itemClass);
                 logCommand.Parameters.AddWithValue("@quantity", quantity);
                 logCommand.Parameters.AddWithValue("@inventoryId", inventoryId);
+                logCommand.Parameters.AddWithValue("@comment", string.IsNullOrEmpty(comment) ? (object)DBNull.Value : comment);
                 logCommand.ExecuteNonQuery();
 
                 return true;
@@ -393,7 +396,7 @@ namespace PIMSExt.Database
         /// Add multiple items to inventory in a single transaction (batch operation)
         /// Returns the number of successfully added items
         /// </summary>
-        public int AddItems(int inventoryId, List<(string itemClass, string properties, int quantity)> items)
+        public int AddItems(int inventoryId, List<(string itemClass, string properties, int quantity)> items, string comment = "")
         {
             if (items == null || items.Count == 0)
                 return 0;
@@ -416,8 +419,8 @@ namespace PIMSExt.Database
                                         "ON DUPLICATE KEY UPDATE `Item_Quantity` = `Item_Quantity` + @quantity";
                     
                     // Prepare the log command for individual item logging
-                    string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`) " +
-                                     "VALUES (@itemClass, @quantity, @inventoryId, 0)";
+                    string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`, `Comment`) " +
+                                     "VALUES (@itemClass, @quantity, @inventoryId, 0, @comment)";
                     
                     // Process all items
                     foreach (var (itemClass, properties, quantity) in items)
@@ -455,6 +458,7 @@ namespace PIMSExt.Database
                             logCommand.Parameters.AddWithValue("@itemClass", itemClass);
                             logCommand.Parameters.AddWithValue("@quantity", quantity);
                             logCommand.Parameters.AddWithValue("@inventoryId", inventoryId);
+                            logCommand.Parameters.AddWithValue("@comment", string.IsNullOrEmpty(comment) ? (object)DBNull.Value : comment);
                             logCommand.ExecuteNonQuery();
                             
                             successCount++;
@@ -471,11 +475,12 @@ namespace PIMSExt.Database
                         moneyCommand.ExecuteNonQuery();
                         
                         // Log money addition
-                        string moneyLogQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`) " +
-                                          "VALUES ('MONEY', @amount, @inventoryId, 0)";
+                        string moneyLogQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`, `Comment`) " +
+                                          "VALUES ('MONEY', @amount, @inventoryId, 0, @comment)";
                         using var logMoneyCommand = new MySqlCommand(moneyLogQuery, connection, transaction);
                         logMoneyCommand.Parameters.AddWithValue("@amount", totalMoneyAdded);
                         logMoneyCommand.Parameters.AddWithValue("@inventoryId", inventoryId);
+                        logMoneyCommand.Parameters.AddWithValue("@comment", string.IsNullOrEmpty(comment) ? (object)DBNull.Value : comment);
                         logMoneyCommand.ExecuteNonQuery();
                         
                         ArmaEntry.WriteToLog($"Batch added {totalMoneyAdded} credits to inventory {inventoryId}", LogLevel.Info);
@@ -502,7 +507,7 @@ namespace PIMSExt.Database
         /// <summary>
         /// Remove or decrement item quantity (uses transaction for atomicity)
         /// </summary>
-        public bool RemoveItem(int contentItemId, int quantity)
+        public bool RemoveItem(int contentItemId, int quantity, string comment = "")
         {
             try
             {
@@ -565,12 +570,13 @@ namespace PIMSExt.Database
                         }
                     }
 
-                    string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`) " +
-                                      "VALUES (@itemClass, @quantity, @inventoryId, 0)";
+                    string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`, `Comment`) " +
+                                      "VALUES (@itemClass, @quantity, @inventoryId, 0, @comment)";
                     using var logCommand = new MySqlCommand(logQuery, connection, transaction);
                     logCommand.Parameters.AddWithValue("@itemClass", itemClass);
                     logCommand.Parameters.AddWithValue("@quantity", -quantity); // Negative for removal
                     logCommand.Parameters.AddWithValue("@inventoryId", inventoryId);
+                    logCommand.Parameters.AddWithValue("@comment", string.IsNullOrEmpty(comment) ? (object)DBNull.Value : comment);
                     logCommand.ExecuteNonQuery();
                     
                     transaction.Commit();
@@ -593,7 +599,7 @@ namespace PIMSExt.Database
         /// Batch remove multiple items in a single transaction (atomic operation)
         /// Returns result with list of successfully removed items for spawning
         /// </summary>
-        public RemoveItemsResult RemoveItems(int inventoryId, List<(int ContentItemId, int Quantity, string ItemClass, string Properties)> items)
+        public RemoveItemsResult RemoveItems(int inventoryId, List<(int ContentItemId, int Quantity, string ItemClass, string Properties)> items, string comment = "")
         {
             var result = new RemoveItemsResult();
             
@@ -651,12 +657,13 @@ namespace PIMSExt.Database
                         }
                         
                         // Log the removal
-                        string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`) " +
-                                         "VALUES (@itemClass, @quantity, @inventoryId, 0)";
+                        string logQuery = "INSERT INTO `logs` (`Transaction_Item`, `Transaction_Quantity`, `Transaction_Inventory_Id`, `isMarketActivity`, `Comment`) " +
+                                         "VALUES (@itemClass, @quantity, @inventoryId, 0, @comment)";
                         using var logCommand = new MySqlCommand(logQuery, connection, transaction);
                         logCommand.Parameters.AddWithValue("@itemClass", item.ItemClass);
                         logCommand.Parameters.AddWithValue("@quantity", -removeQuantity);
                         logCommand.Parameters.AddWithValue("@inventoryId", inventoryId);
+                        logCommand.Parameters.AddWithValue("@comment", string.IsNullOrEmpty(comment) ? (object)DBNull.Value : comment);
                         logCommand.ExecuteNonQuery();
                         
                         // Add to successfully removed list

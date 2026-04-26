@@ -52,7 +52,7 @@ if (_result != "OK") then {
 	// #region Container Unlock
 	// Unlock all PIMS containers and disable damage before any player events fire.
 	// Some parent classes default lockInventory to true, so this must run early.
-	private _allInitModules = allMissionObjects "Logic" select {
+	PIMS_AddInventoryModules = allMissionObjects "Logic" select {
 		typeOf _x == "PIMS_ModuleAddInventory"
 	};
 	{
@@ -66,8 +66,8 @@ if (_result != "OK") then {
 				_x setDamage [0, false, objNull, objNull, true];
 			};
 		} forEach _objects;
-	} forEach _allInitModules;
-	diag_log format ["PIMS INFO: Unlocked containers for %1 inventory modules at init", count _allInitModules];
+	} forEach PIMS_AddInventoryModules;
+	diag_log format ["PIMS INFO: Unlocked containers for %1 inventory modules at init", count PIMS_AddInventoryModules];
 	// #endregion
 	
 	// #region Server Addon Reporting
@@ -126,21 +126,16 @@ if (_result != "OK") then {
 			// Collect all boxes for which the player has access permissions
 			private _ownedBoxes = [];
 
-			// Collect all editor-placed AddInventory modules
-			private _addInventoryModules = allMissionObjects "Logic" select {
-				typeOf _x == "PIMS_ModuleAddInventory"
-			};
-			
 			{
 				private _module = _x;
 				private _inventoryId = _module getVariable ["PIMS_Inventory_Id_Edit", 0];
-				private _objects = synchronizedObjects _module select {!isNil "_x"};
+				private _objects = synchronizedObjects _module select {!isNull _x};
 				
 				// Check if this player has access (in-memory lookup, no DB call)
 				private _hasPermission = _inventoryId in _allowedInventories;
 				
 				if (_hasPermission) then {
-					_ownedBoxes append _objects;
+					{ _ownedBoxes pushBackUnique _x } forEach _objects;
 					
 					// Resolve inventory display name (cached per ID to avoid repeat queries)
 					private _inventoryName = _nameCache getOrDefault [_inventoryId, ""];
@@ -211,7 +206,7 @@ if (_result != "OK") then {
 					// #endregion
 				};
 				// Players without permission receive no addAction — per-player, no global lock
-			} forEach _addInventoryModules;
+			} forEach PIMS_AddInventoryModules;
 			
 			// #region Action Assignment — Zeus-Spawned Boxes
 			if (!isNil "PIMS_ZeusSpawnedBoxes") then {
@@ -224,7 +219,7 @@ if (_result != "OK") then {
 					private _hasPermission = _inventoryId in _allowedInventories;
 					
 					if (_hasPermission) then {
-						_ownedBoxes pushBack _box;
+						_ownedBoxes pushBackUnique _box;
 						
 						// Resolve inventory display name (cached per ID)
 						private _inventoryName = _nameCache getOrDefault [_inventoryId, ""];
@@ -296,8 +291,8 @@ if (_result != "OK") then {
 			_ownedBoxes = _ownedBoxes - [objNull];
 			private _playerObj = [_uid] call PIMS_fnc_getPlayerByUID;
 			if (!isNull _playerObj) then {
-				_playerObj setVariable ["C9_OwnedBoxes", _ownedBoxes]; // Set on server for future server-side lookups
-				[_playerObj, ["C9_OwnedBoxes", _ownedBoxes]] remoteExec ["setVariable", _owner];
+				_playerObj setVariable ["C9_OwnedBoxes", _ownedBoxes, true]; // Set public for future server-side lookups and client access
+
 			};
 		}, [_uid, _owner]] call CBA_fnc_waitUntilAndExecute;
 	}];
@@ -322,11 +317,6 @@ if (_result != "OK") then {
 	[{
 		// #region Monitor Setup (runs once after 10-second delay)
 		
-		// Collect all AddInventory modules — they don't change during the mission
-		private _addInventoryModules = allMissionObjects "Logic" select {
-			typeOf _x == "PIMS_ModuleAddInventory"
-		};
-		
 		// Build inventoryId -> [boxes] map as a global variable.
 		// Must be global — CBA PFH args serialize HashMaps into plain arrays,
 		// which breaks 'keys' and other HashMap commands inside the callback.
@@ -343,7 +333,7 @@ if (_result != "OK") then {
 				_existingBoxes append _objects;
 				PIMS_MonitorBoxMap set [_inventoryId, _existingBoxes];
 			};
-		} forEach _addInventoryModules;
+		} forEach PIMS_AddInventoryModules;
 		
 		// Cache inventory display names — they never change during the mission
 		{
@@ -363,7 +353,7 @@ if (_result != "OK") then {
 			private _module = _x;
 			private _objects = synchronizedObjects _module select {!isNull _x};
 			PIMS_AllContainers append _objects;
-		} forEach _addInventoryModules;
+		} forEach PIMS_AddInventoryModules;
 		
 		// Trigger initial background DB refresh so the first PFH tick has cached data
 		{ "PIMS-Ext" callExtension format ["queuerefresh|%1", _x]; } forEach (keys PIMS_MonitorBoxMap);

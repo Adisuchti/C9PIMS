@@ -507,7 +507,7 @@ namespace PIMSExt
             if (!int.TryParse(parts[4], out int quantity))
                 return "Error: quantity must be a number";
 
-            bool success = _dbManager.AddItem(inventoryId, itemClass, properties, quantity);
+            bool success = _dbManager.AddItem(inventoryId, itemClass, properties, quantity, parts.Length > 5 ? parts[5] : "");
             
             // Invalidate cache so next upload will refresh
             if (success)
@@ -548,7 +548,10 @@ namespace PIMSExt
             if (items == null || items.Count == 0)
                 return "Error: Failed to parse items array or array is empty";
 
-            int successCount = _dbManager.AddItems(inventoryId, items);
+            string comment = parts.Length > 3 ? parts[3] : "";
+            WriteToLog($"HandleAddItems: parts.Length={parts.Length}, comment='{comment}'", LogLevel.Info);
+
+            int successCount = _dbManager.AddItems(inventoryId, items, comment);
             
             // Invalidate cache
             if (successCount > 0)
@@ -687,7 +690,10 @@ namespace PIMSExt
             if (!int.TryParse(parts[2], out int quantity))
                 return "Error: quantity must be a number";
 
-            bool success = _dbManager.RemoveItem(contentItemId, quantity);
+            string comment = parts.Length >= 5 ? parts[4] : "";
+            WriteToLog($"HandleRemoveItem: parts.Length={parts.Length}, comment='{comment}'", LogLevel.Info);
+
+            bool success = _dbManager.RemoveItem(contentItemId, quantity, comment);
             
             // Invalidate cache if inventoryId provided
             if (success && parts.Length >= 4 && int.TryParse(parts[3], out int inventoryId))
@@ -715,18 +721,20 @@ namespace PIMSExt
             if (_dbManager == null)
                 return "Error: Database not initialized";
 
-            if (parts.Length < 3)
-                return "Error: removeitems requires 2 parameters: inventoryId|itemsArray";
+            if (parts.Length < 4)
+                return "Error: removeitems requires 3 parameters: inventoryId|comment|itemsArray";
 
             if (!int.TryParse(parts[1], out int inventoryId))
                 return "Error: inventoryId must be a number";
 
-            string itemsArrayStr = parts[2];
+            string comment = parts[2];
+            string itemsArrayStr = parts[3];
+            WriteToLog($"HandleRemoveItems: parts.Length={parts.Length}, comment='{comment}'", LogLevel.Info);
             
             // Handle case where array might have been split by pipes within it
-            if (parts.Length > 3)
+            if (parts.Length > 4)
             {
-                itemsArrayStr = string.Join("|", parts.Skip(2));
+                itemsArrayStr = string.Join("|", parts.Skip(3));
             }
 
             try
@@ -740,7 +748,7 @@ namespace PIMSExt
                 lock (GetInventoryLock(inventoryId))
                 {
                     // Call database batch remove - returns list of successfully removed items
-                    var result = _dbManager.RemoveItems(inventoryId, itemsToRemove);
+                    var result = _dbManager.RemoveItems(inventoryId, itemsToRemove, comment);
                     
                     if (result.Success)
                     {
@@ -766,6 +774,7 @@ namespace PIMSExt
                 return $"Error: {ex.Message}";
             }
         }
+
 
         /// <summary>
         /// Parse SQF array format for batch remove: [[contentItemId,quantity,itemClass,properties],...]
@@ -890,7 +899,10 @@ namespace PIMSExt
             if (!double.TryParse(parts[2], out double amount))
                 return "Error: amount must be a number";
 
-            bool success = _dbManager.WithdrawMoney(inventoryId, amount);
+            string comment = parts.Length > 3 ? parts[3] : "";
+            WriteToLog($"HandleWithdrawMoney: parts.Length={parts.Length}, comment='{comment}'", LogLevel.Info);
+
+            bool success = _dbManager.WithdrawMoney(inventoryId, amount, comment);
             
             // Invalidate money cache so next upload will refresh
             if (success)

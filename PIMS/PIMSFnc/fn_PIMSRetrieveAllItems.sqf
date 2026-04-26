@@ -78,9 +78,13 @@ private _batchArray = [];
 	_batchArray pushBack [_contentItemId, _quantity, _itemClass, _properties];
 } forEach _itemsArray;
 
+// Build comment string for transaction logging
+private _playerName = if (!isNull _player) then {name _player} else {"Unknown"};
+private _comment = format ["%1 (%2)", _playerName, _playerUid];
+
 // Single extension call to remove all items from database (non-blocking for SQF scheduler)
 private _batchString = str _batchArray;
-private _removeCommand = format ["removeitems|%1|%2", _inventoryId, _batchString];
+private _removeCommand = format ["removeitems|%1|%2|%3", _inventoryId, _comment, _batchString];
 private _removeResult = "PIMS-Ext" callExtension _removeCommand;
 
 private _successCount = 0;
@@ -114,7 +118,7 @@ if ((_removeResult select [0, 2]) == "OK") then {
 			_successCount = _successCount + 1;
 		} else {
 			// Failed to add to container - need to rollback this item to database
-			private _rollbackCommand = format ["additem|%1|%2|%3|%4", _inventoryId, _itemClass, _properties, _quantity];
+			private _rollbackCommand = format ["additem|%1|%2|%3|%4|%5", _inventoryId, _itemClass, _properties, _quantity, format ["ROLLBACK: %1", _comment]];
 			"PIMS-Ext" callExtension _rollbackCommand;
 			_failedItems pushBack _itemClass;
 			
